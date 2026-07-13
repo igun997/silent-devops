@@ -17,7 +17,11 @@ func (d *Dashboard) View() string {
 	header := d.headerView()
 	tabs := d.tabsView()
 	sidebar := d.th.sidebar.Render(d.sidebar())
-	main := d.th.panel.Render(d.panelView())
+	body := d.panelView()
+	if d.migrating {
+		body = d.migrateView()
+	}
+	main := d.th.panel.Render(body)
 
 	var content string
 	if d.width >= 90 {

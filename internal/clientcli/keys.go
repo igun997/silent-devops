@@ -14,6 +14,7 @@ type keyMap struct {
 	Scroll    key.Binding
 	Search    key.Binding
 	SSH       key.Binding
+	Migrate   key.Binding
 	Refresh   key.Binding
 	Quit      key.Binding
 }
@@ -29,6 +30,7 @@ func defaultKeys() keyMap {
 		Scroll:    key.NewBinding(key.WithKeys("pgup", "pgdown", "g", "G"), key.WithHelp("pgup/pgdn", "scroll")),
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 		SSH:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "ssh")),
+		Migrate:   key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "migrate (easypanel)")),
 		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	}
@@ -44,6 +46,6 @@ func (k keyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down},
 		{k.AgentPrev, k.AgentNext},
 		{k.Scroll, k.Search},
-		{k.SSH, k.Refresh, k.Quit},
+		{k.SSH, k.Migrate, k.Refresh, k.Quit},
 	}
 }

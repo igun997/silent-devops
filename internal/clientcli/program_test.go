@@ -147,6 +147,88 @@ func TestDashboardEasypanelPanelShowsOutput(t *testing.T) {
 	}
 }
 
+// captureAPI records the last easypanel call so migrate dispatch can be
+// asserted.
+type captureAPI struct {
+	cmd  string
+	args []string
+}
+
+func (c *captureAPI) Call(_ context.Context, command string, args []string) (any, error) {
+	if command == "agents" {
+		return &devopsv1.ListAgentsResponse{Agents: []*devopsv1.Agent{
+			{Id: "src", Hostname: "alpha", Online: true},
+			{Id: "dst", Hostname: "beta", Online: true},
+		}}, nil
+	}
+	c.cmd, c.args = command, args
+	return map[string]any{"job_id": "j1", "output": "migrate: ok\n"}, nil
+}
+
+func TestMigrateFormDispatchesCommand(t *testing.T) {
+	api := &captureAPI{}
+	d := NewDashboard(api, true)
+	d.Update(d.loadAgents()())
+	d.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	d.panel = easypanelPanel
+	// Open the migrate form on the EasyPanel panel.
+	d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	if !d.migrating || d.form == nil {
+		t.Fatalf("migrate form did not open (migrating=%v)", d.migrating)
+	}
+	// Fill the four fields.
+	for i, val := range []string{"staging", "flux-be", "tests", "flux"} {
+		d.form.setFocus(i)
+		for _, r := range val {
+			d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
+	}
+	// Jump to submit, first Enter arms confirmation, second Enter dispatches.
+	d.form.setFocus(mfSubmit)
+	d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !d.form.confirm {
+		t.Fatal("first enter should arm confirmation")
+	}
+	cmd := d.updateMigrate(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("second enter should dispatch")
+	}
+	d.Update(cmd())
+	if api.cmd != "easypanel" {
+		t.Fatalf("expected easypanel command, got %q", api.cmd)
+	}
+	joined := strings.Join(api.args, " ")
+	for _, want := range []string{
+		"src migrate --to-agent dst",
+		"--local-project staging", "--local-service flux-be",
+		"--remote-project tests", "--remote-service flux",
+		"--create-remote-project",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("args missing %q: %q", want, joined)
+		}
+	}
+	if d.migrating {
+		t.Fatal("form should close after dispatch")
+	}
+}
+
+func TestMigrateFormValidationRequiresFields(t *testing.T) {
+	api := &captureAPI{}
+	d := NewDashboard(api, true)
+	d.Update(d.loadAgents()())
+	d.panel = easypanelPanel
+	d.openMigrate()
+	d.form.setFocus(mfSubmit)
+	d.updateMigrate(tea.KeyMsg{Type: tea.KeyEnter})
+	if d.err == nil {
+		t.Fatal("expected validation error for empty fields")
+	}
+	if api.cmd == "easypanel" {
+		t.Fatal("must not dispatch with empty fields")
+	}
+}
+
 func TestDashboardQuit(t *testing.T) {
 	d := NewDashboard(dashboardAPI{}, true)
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})

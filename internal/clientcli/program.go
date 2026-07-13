@@ -57,6 +57,8 @@ type Dashboard struct {
 	search                         textinput.Model
 	searching                      bool
 	filter                         string
+	migrating                      bool
+	form                           *migrateForm
 }
 
 func NewDashboard(api API, noColor bool) *Dashboard {
@@ -255,6 +257,9 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if d.login {
 			return d, d.updateLogin(m)
 		}
+		if d.migrating {
+			return d, d.updateMigrate(m)
+		}
 		if d.searching {
 			return d, d.updateSearch(m)
 		}
@@ -335,6 +340,11 @@ func (d *Dashboard) handleKey(m tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return d, tea.Batch(d.loadAgents(), d.loadPanel())
 	case key.Matches(m, d.keys.SSH):
 		return d.startSSH()
+	case key.Matches(m, d.keys.Migrate):
+		if d.panel == easypanelPanel {
+			d.openMigrate()
+			return d, nil
+		}
 	}
 	if tablePanel(d.panel) && m.String() == "/" {
 		d.searching = true

@@ -190,8 +190,23 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 		if len(args) < 2 {
 			return nil, errors.New("agent ID and action required")
 		}
-		cmd := append([]string{"easypanel-migrate"}, args[1:]...)
-		return a.execCapture(ctx, args[0], "easypanel "+args[1], cmd)
+		rest := args[1:]
+		// Cross-agent migrate: --to-agent DST resolves the target panel URL+token
+		// by running detect/token on DST, then feeds them to the migrate job on
+		// the source agent (args[0]).
+		if to, remain, ok := extractFlag(rest, "--to-agent"); ok {
+			// Honor an explicit reachable URL; otherwise derive from the target
+			// agent hostname. The token is always read from the target panel.
+			url, remain2, hasURL := extractFlag(remain, "--remote-url")
+			resolvedURL, tok, rerr := a.resolveRemotePanel(ctx, to, url)
+			if rerr != nil {
+				return nil, rerr
+			}
+			_ = hasURL
+			rest = append(remain2, "--remote-url", resolvedURL, "--remote-token", tok)
+		}
+		cmd := append([]string{"easypanel-migrate"}, rest...)
+		return a.execCapture(ctx, args[0], "easypanel "+rest[0], cmd)
 	case "exec":
 		return a.execCapture(ctx, args[0], "admin exec", args[1:])
 	case "enroll-token":
@@ -249,6 +264,99 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 	default:
 		return nil, fmt.Errorf("unsupported command %q", command)
 	}
+}
+
+// extractFlag removes "name VALUE" from args and returns the value plus the
+// remaining args. ok is false when the flag is absent.
+func extractFlag(args []string, name string) (value string, remaining []string, ok bool) {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == name && i+1 < len(args) {
+			value, ok = args[i+1], true
+			i++
+			continue
+		}
+		out = append(out, args[i])
+	}
+	return value, out, ok
+}
+
+// easypanelExec runs one easypanel-migrate action on an agent and returns its
+// trimmed captured stdout.
+func (a *Adapter) easypanelExec(ctx context.Context, agentID string, argv ...string) (string, error) {
+	res, err := a.execCapture(ctx, agentID, "easypanel "+argv[0], append([]string{"easypanel-migrate"}, argv...))
+	if err != nil {
+		return "", err
+	}
+	m, _ := res.(map[string]any)
+	if oe, ok := m["output_error"].(string); ok && oe != "" {
+		return "", errors.New(oe)
+	}
+	out, _ := m["output"].(string)
+	return strings.TrimSpace(out), nil
+}
+
+// resolveRemotePanel confirms the target agent runs EasyPanel and reads its API
+// token from the target panel's LMDB store. The reachable base URL is either the
+// operator-supplied explicitURL or derived from the target agent hostname (the
+// panel's own detect reports a loopback URL the SOURCE host cannot reach).
+func (a *Adapter) resolveRemotePanel(ctx context.Context, agentID, explicitURL string) (url, token string, err error) {
+	det, err := a.easypanelExec(ctx, agentID, "detect")
+	if err != nil {
+		return "", "", fmt.Errorf("detect target panel: %w", err)
+	}
+	if parseDetectURL(det) == "" {
+		return "", "", fmt.Errorf("target agent has no EasyPanel: %s", det)
+	}
+	url = strings.TrimSpace(explicitURL)
+	if url == "" {
+		host, herr := a.agentHostname(ctx, agentID)
+		if herr != nil {
+			return "", "", herr
+		}
+		url = "http://" + host + ":3000"
+	}
+	token, err = a.easypanelExec(ctx, agentID, "token")
+	if err != nil {
+		return "", "", fmt.Errorf("read target panel token: %w", err)
+	}
+	if token == "" {
+		return "", "", errors.New("target panel token empty")
+	}
+	return url, token, nil
+}
+
+// agentHostname resolves an agent ID to its reported hostname via the fleet.
+func (a *Adapter) agentHostname(ctx context.Context, agentID string) (string, error) {
+	token, err := a.store.Load()
+	if err != nil {
+		return "", errors.New("login required")
+	}
+	lctx := metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
+	resp, err := a.fleet.ListAgents(lctx, &devopsv1.ListAgentsRequest{PageSize: 200})
+	if err != nil {
+		return "", err
+	}
+	for _, ag := range resp.GetAgents() {
+		if ag.GetId() == agentID {
+			if ag.GetHostname() == "" {
+				return "", fmt.Errorf("target agent %s has no hostname; pass --remote-url", agentID)
+			}
+			return ag.GetHostname(), nil
+		}
+	}
+	return "", fmt.Errorf("target agent %s not found", agentID)
+}
+
+// parseDetectURL extracts the url=... field from a detect line such as
+// "easypanel: detected container=... url=http://127.0.0.1:3000".
+func parseDetectURL(detect string) string {
+	for _, f := range strings.Fields(detect) {
+		if strings.HasPrefix(f, "url=") {
+			return strings.TrimPrefix(f, "url=")
+		}
+	}
+	return ""
 }
 
 // execCapture dispatches an admin exec job on the agent and follows its

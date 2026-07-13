@@ -88,7 +88,21 @@ silent-devops-client easypanel AGENT_ID migrate --yes \
   --local-project staging --local-service flux-be \
   --remote-url http://REMOTE:3000 --remote-token TOK \
   --remote-project tests --remote-service flux
+
+# migrate between two agents: --to-agent resolves the target panel URL
+# (from the target agent hostname, or --remote-url) and token automatically.
+silent-devops-client easypanel SRC_AGENT_ID migrate --yes \
+  --to-agent DST_AGENT_ID \
+  --local-project staging --local-service flux-be \
+  --remote-project tests --remote-service flux \
+  --create-remote-project
 ```
+
+With `--to-agent`, the client runs `detect` + `token` on the target agent to
+resolve its panel token, derives the reachable URL as `http://<target
+hostname>:3000` (override with `--remote-url`), and passes both to the migrate
+job on the source agent. The source agent must be able to reach that URL over
+the network.
 
 The client dispatches an admin-exec job that runs `easypanel-migrate` on the
 agent and streams back the captured stdout (polling until the job reaches a
@@ -99,6 +113,13 @@ terminal state).
 The dashboard has an **EasyPanel** panel (tab across to it) that runs `detect`
 and `projects` on the selected agent and shows the captured output in a
 scrollable view.
+
+Press **`m`** on the EasyPanel panel to open the **migrate form**: the source
+agent is preset to the selected agent, you pick a target agent and name the
+local/remote projects and services, toggle create/overwrite, and confirm. The
+client resolves the target panel URL + token automatically and streams the
+migrate output back into the panel. Migration is destructive and requires an
+explicit second Enter to confirm.
 
 ## Tests
 
