@@ -1,0 +1,58 @@
+x-agent: &agent
+  build: {context: .., dockerfile: integration/Dockerfile}
+  depends_on: {provision: {condition: service_completed_successfully}}
+  networks: [agent_net]
+  volumes: [shared:/shared]
+  healthcheck: {test: [CMD-SHELL, "test -f /creds/agent.crt && pgrep agent"], interval: 2s, timeout: 2s, retries: 30}
+services:
+  validator:
+    build: {context: .., dockerfile: integration/Dockerfile}
+    environment:
+      ROLE: validator
+      SILENT_DEVOPS_LISTEN: 0.0.0.0:8443
+      SILENT_DEVOPS_DB: /state/devops.db
+      SILENT_DEVOPS_TLS_CERT: /shared/server.crt
+      SILENT_DEVOPS_TLS_KEY: /shared/server.key
+      SILENT_DEVOPS_CLIENT_CA: /shared/client-ca.crt
+      SILENT_DEVOPS_AGENT_CA: /shared/agent-ca.key
+      SILENT_DEVOPS_AGENT_CA_PASSPHRASE: integration-agent-ca-passphrase
+      SILENT_DEVOPS_TOKEN_KEY: integration-token-key-at-least-32-bytes
+      SILENT_DEVOPS_ENROLL_CIDRS: 0.0.0.0/0
+      SILENT_DEVOPS_AGENT_CIDRS: 0.0.0.0/0
+      SILENT_DEVOPS_CLIENT_CIDRS: 172.28.0.0/16
+      SILENT_DEVOPS_BOOTSTRAP_USER: admin
+      SILENT_DEVOPS_BOOTSTRAP_PASSWORD: integration-admin-password
+    networks: {agent_net: {}, client_net: {ipv4_address: 172.28.0.10}}
+    volumes: [validator-state:/state, shared:/shared]
+    healthcheck: {test: [CMD-SHELL, "test -f /shared/server.crt && pgrep validator"], interval: 2s, timeout: 2s, retries: 30}
+  provision:
+    build: {context: .., dockerfile: integration/Dockerfile}
+    entrypoint: [sh, -c]
+    command: ["until [ -f /shared/server.crt ]; do sleep 1; done; integration-helper tokens validator:8443 /shared"]
+    depends_on: {validator: {condition: service_healthy}}
+    networks: {client_net: {ipv4_address: 172.28.0.20}}
+    volumes: [shared:/shared]
+  agent-ubuntu-2204:
+    <<: *agent
+    environment: {ROLE: agent, AGENT_ID: ubuntu-2204, ENROLL_TOKEN_FILE: /shared/token-1, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds}
+  agent-ubuntu-2404:
+    <<: *agent
+    environment: {ROLE: agent, AGENT_ID: ubuntu-2404, ENROLL_TOKEN_FILE: /shared/token-2, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds}
+  agent-debian-12:
+    <<: *agent
+    environment: {ROLE: agent, AGENT_ID: debian-12, ENROLL_TOKEN_FILE: /shared/token-3, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds}
+  allowed-client:
+    build: {context: .., dockerfile: integration/Dockerfile}
+    environment: {ROLE: client, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_VALIDATOR_CA: /shared/server.crt, SILENT_DEVOPS_SERVER_NAME: validator}
+    networks: {client_net: {ipv4_address: 172.28.0.30}}
+    volumes: [shared:/shared]
+  denied-client:
+    build: {context: .., dockerfile: integration/Dockerfile}
+    environment: {ROLE: client}
+    networks: [denied_net, agent_net]
+    volumes: [shared:/shared]
+networks:
+  agent_net: {internal: true}
+  client_net: {internal: true, ipam: {config: [{subnet: 172.28.0.0/16}]}}
+  denied_net: {internal: true}
+volumes: {validator-state: {}, shared: {}}

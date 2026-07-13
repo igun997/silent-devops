@@ -1,0 +1,75 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Verify
+        run: make generate-check fmt-check vet test test-race build-linux
+
+  package:
+    needs: verify
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build bundle
+        env:
+          ARCH: ${{ matrix.arch }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -eu
+          make VERSION="$VERSION" build-linux
+          root="dist/silent-devops-linux-$ARCH"
+          mkdir -p "$root/bin" "$root/packaging"
+          cp "bin/agent-linux-$ARCH" "$root/bin/"
+          cp "bin/validator-linux-$ARCH" "$root/bin/"
+          cp "bin/client-linux-$ARCH" "$root/bin/"
+          cp packaging/install.sh packaging/uninstall.sh "$root/"
+          cp -R packaging/systemd packaging/ssh "$root/packaging/"
+          cp README.md docs/installation.md docs/operations.md "$root/"
+          tar -C dist -czf "dist/silent-devops-linux-$ARCH.tar.gz" "silent-devops-linux-$ARCH"
+          sha256sum "dist/silent-devops-linux-$ARCH.tar.gz" > "dist/silent-devops-linux-$ARCH.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: silent-devops-linux-${{ matrix.arch }}
+          path: |
+            dist/silent-devops-linux-${{ matrix.arch }}.tar.gz
+            dist/silent-devops-linux-${{ matrix.arch }}.tar.gz.sha256
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256

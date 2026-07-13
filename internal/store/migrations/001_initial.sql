@@ -1,0 +1,13 @@
+CREATE TABLE users(id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash BLOB NOT NULL, role INTEGER NOT NULL, disabled INTEGER NOT NULL DEFAULT 0, created_unix_ms INTEGER NOT NULL);
+CREATE TABLE ssh_keys(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, public_key BLOB NOT NULL, label TEXT NOT NULL, created_unix_ms INTEGER NOT NULL, UNIQUE(user_id, public_key));
+CREATE TABLE enrollment_tokens(id TEXT PRIMARY KEY, token_hash BLOB NOT NULL UNIQUE, expires_unix_ms INTEGER NOT NULL, consumed_unix_ms INTEGER, created_by TEXT REFERENCES users(id));
+CREATE TABLE agents(id TEXT PRIMARY KEY, certificate_serial TEXT UNIQUE, certificate_expires_unix_ms INTEGER, revoked_unix_ms INTEGER, hostname TEXT NOT NULL DEFAULT '', boot_id TEXT NOT NULL DEFAULT '', metadata BLOB NOT NULL DEFAULT '{}', created_unix_ms INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE connections(agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE, connected_unix_ms INTEGER, disconnected_unix_ms INTEGER, stream_id TEXT UNIQUE, state TEXT NOT NULL);
+CREATE TABLE jobs(id TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL, actor_id TEXT NOT NULL REFERENCES users(id), agent_id TEXT NOT NULL REFERENCES agents(id), kind TEXT NOT NULL, state INTEGER NOT NULL, reason TEXT NOT NULL, created_unix_ms INTEGER NOT NULL, deadline_unix_ms INTEGER NOT NULL, attempt INTEGER NOT NULL DEFAULT 0, dispatch_id TEXT UNIQUE, capture_output INTEGER NOT NULL DEFAULT 0, output BLOB, output_truncated INTEGER NOT NULL DEFAULT 0, UNIQUE(agent_id, idempotency_key));
+CREATE TABLE audit_events(id TEXT PRIMARY KEY, actor_id TEXT REFERENCES users(id), agent_id TEXT REFERENCES agents(id), action TEXT NOT NULL, reason TEXT NOT NULL, occurred_unix_ms INTEGER NOT NULL, metadata BLOB NOT NULL DEFAULT '{}');
+CREATE TABLE ssh_sessions(id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id), agent_id TEXT NOT NULL REFERENCES agents(id), public_key BLOB NOT NULL, state INTEGER NOT NULL, loopback_port INTEGER UNIQUE, expires_unix_ms INTEGER NOT NULL, created_unix_ms INTEGER NOT NULL);
+CREATE TABLE metrics_current(agent_id TEXT PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE, sampled_unix_ms INTEGER NOT NULL, payload BLOB NOT NULL);
+CREATE TABLE metrics_minute(agent_id TEXT NOT NULL, bucket_unix_ms INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(agent_id, bucket_unix_ms));
+CREATE INDEX audit_occurred_idx ON audit_events(occurred_unix_ms);
+CREATE INDEX metrics_minute_bucket_idx ON metrics_minute(bucket_unix_ms);
+CREATE INDEX jobs_agent_created_idx ON jobs(agent_id, created_unix_ms);

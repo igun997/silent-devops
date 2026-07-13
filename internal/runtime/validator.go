@@ -1,0 +1,98 @@
+package runtime
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	devopsv1 "silent-devops/api/devops/v1"
+	"silent-devops/internal/auth"
+	"silent-devops/internal/metrics"
+	"silent-devops/internal/pki"
+	"silent-devops/internal/registry"
+	serverapi "silent-devops/internal/server"
+	sshmanager "silent-devops/internal/ssh"
+	"silent-devops/internal/store"
+)
+
+func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
+	s, err := store.Open(ctx, cfg.DB)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	if cfg.BootstrapUser != "" || cfg.BootstrapPassword != "" {
+		if err := pki.BootstrapAdmin(ctx, s.DB(), cfg.BootstrapUser, cfg.BootstrapPassword, time.Now()); err != nil && err.Error() != "bootstrap already completed" {
+			return err
+		}
+	}
+	persistence := registry.NewPersistence(s.DB())
+	if err := persistence.MarkAllOffline(ctx, time.Now()); err != nil {
+		return err
+	}
+	cert, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
+	if err != nil {
+		return fmt.Errorf("load validator TLS identity: %w", err)
+	}
+	caPEM, err := os.ReadFile(cfg.ClientCA)
+	if err != nil {
+		return fmt.Errorf("read client CA: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return errors.New("invalid client CA")
+	}
+	agentCA, err := pki.LoadCA(cfg.AgentCA, []byte(cfg.AgentCAPassphrase))
+	if err != nil {
+		return fmt.Errorf("load agent CA: %w", err)
+	}
+	if !pool.AppendCertsFromPEM(agentCA.CertificatePEM()) {
+		return errors.New("invalid agent CA")
+	}
+	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}, ClientCAs: pool, ClientAuth: tls.VerifyClientCertIfGiven, MinVersion: tls.VersionTLS13}
+	listener, err := net.Listen("tcp", cfg.Listen)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+	identities := pki.NewIdentityRegistry(s.DB())
+	issuer, err := auth.NewIssuer(cfg.TokenKey, 15*time.Minute)
+	if err != nil {
+		return err
+	}
+	authService := auth.NewService(s.DB(), issuer, auth.NewRateLimiter(5, time.Minute), time.Now)
+	serverOptions := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsConfig)), grpc.UnaryInterceptor(auth.EndpointUnaryInterceptor(issuer, cfg.Policies, time.Now)), grpc.StreamInterceptor(auth.StreamInterceptor(issuer, cfg.Policies, time.Now))}
+	server := grpc.NewServer(serverOptions...)
+	devopsv1.RegisterAuthServiceServer(server, serverapi.Auth{Service: authService})
+	tokens := pki.NewEnrollmentManager(s.DB())
+	devopsv1.RegisterEnrollmentServiceServer(server, serverapi.Enrollment{CA: agentCA, Tokens: tokens, Identities: identities, Validity: 24 * time.Hour})
+	agentRegistry := registry.New(1, devopsv1.DefaultLimits(), 45*time.Second)
+	sshSessions := sshmanager.NewManager(s.DB(), 22000, 22999, time.Now)
+	if err := sshSessions.Reconcile(ctx, time.Now()); err != nil {
+		return err
+	}
+	devopsv1.RegisterFleetServiceServer(server, serverapi.Fleet{DB: s.DB(), Tokens: tokens, Registry: agentRegistry, SSH: sshSessions})
+	messageHandler := registry.MessageHandler{DB: s.DB(), Metrics: metrics.NewRepository(s.DB()), SSH: sshSessions}
+	devopsv1.RegisterAgentServiceServer(server, &registry.AgentServer{Registry: agentRegistry, Persistence: persistence, Authorize: identities.AuthorizeConnection, Handle: messageHandler.Handle})
+	stopped := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			server.GracefulStop()
+		case <-stopped:
+		}
+	}()
+	err = server.Serve(listener)
+	close(stopped)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}

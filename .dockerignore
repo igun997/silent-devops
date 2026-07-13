@@ -1,0 +1,6 @@
+.git
+.tools
+bin
+*.db
+*.pem
+*.key

@@ -1,0 +1,105 @@
+syntax = "proto3";
+package devops.v1;
+option go_package = "silent-devops/api/devops/v1;devopsv1";
+
+// Compatibility: never reuse field numbers or enum values; reserve removed
+// fields; add messages or repeated/map fields freely, and mark new proto3 scalar
+// fields optional when wire presence matters. Incompatible behavior requires devops.v2.
+service EnrollmentService { rpc Enroll(EnrollRequest) returns (EnrollResponse); rpc Renew(RenewRequest) returns (RenewResponse); }
+service AgentService { rpc Connect(stream AgentMessage) returns (stream ValidatorMessage); }
+service AuthService { rpc Login(LoginRequest) returns (LoginResponse); }
+service FleetService {
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse); rpc GetAgent(GetAgentRequest) returns (Agent);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc ListProcesses(ProcessListJobRequest) returns (Job); rpc ListServices(ServiceListJobRequest) returns (Job); rpc GetService(ServiceJobRequest) returns (Job);
+  rpc StartService(ServiceJobRequest) returns (Job); rpc StopService(ServiceJobRequest) returns (Job); rpc RestartService(ServiceJobRequest) returns (Job);
+  rpc ReadLogs(JournalJobRequest) returns (Job); rpc PreviewCleanup(CleanupPreviewJobRequest) returns (Job); rpc RunCleanup(CleanupRunJobRequest) returns (Job);
+  rpc Reboot(RebootJobRequest) returns (Job); rpc Exec(ExecJobRequest) returns (Job);
+  rpc CancelJob(CancelJobRequest) returns (Job); rpc StreamJobOutput(StreamJobOutputRequest) returns (stream OutputChunk);
+  rpc PrepareSsh(PrepareSshRequest) returns (SshSession); rpc CloseSsh(CloseSshRequest) returns (SshSession);
+  rpc ListAudit(ListAuditRequest) returns (ListAuditResponse); rpc CreateEnrollmentToken(CreateEnrollmentTokenRequest) returns (EnrollmentToken);
+  rpc CreateUser(CreateUserRequest) returns (User); rpc ListUsers(ListUsersRequest) returns (ListUsersResponse); rpc SetUserRole(SetUserRoleRequest) returns (User);
+  rpc AddSshKey(AddSshKeyRequest) returns (SshKey); rpc ListSshKeys(ListSshKeysRequest) returns (ListSshKeysResponse); rpc DeleteSshKey(DeleteSshKeyRequest) returns (DeleteSshKeyResponse);
+}
+
+enum ErrorCode { ERROR_CODE_UNSPECIFIED=0; ERROR_CODE_INVALID_ARGUMENT=1; ERROR_CODE_UNAUTHENTICATED=2; ERROR_CODE_PERMISSION_DENIED=3; ERROR_CODE_NOT_FOUND=4; ERROR_CODE_CONFLICT=5; ERROR_CODE_EXPIRED=6; ERROR_CODE_REVOKED=7; ERROR_CODE_RATE_LIMITED=8; ERROR_CODE_UNSUPPORTED=9; ERROR_CODE_DEADLINE_EXCEEDED=10; ERROR_CODE_OUTPUT_LIMIT=11; ERROR_CODE_STORAGE_UNAVAILABLE=12; ERROR_CODE_INTERNAL=13; ERROR_CODE_DUPLICATE_JOB=14; ERROR_CODE_DUPLICATE_STREAM=15; }
+enum Role { ROLE_UNSPECIFIED=0; ROLE_VIEWER=1; ROLE_OPERATOR=2; ROLE_ADMIN=3; }
+enum JobState { JOB_STATE_UNSPECIFIED=0; JOB_STATE_QUEUED=1; JOB_STATE_DISPATCHED=2; JOB_STATE_RUNNING=3; JOB_STATE_SUCCEEDED=4; JOB_STATE_FAILED=5; JOB_STATE_CANCELLED=6; JOB_STATE_TIMED_OUT=7; JOB_STATE_UNKNOWN_RESULT=8; JOB_STATE_REJECTED=9; }
+enum DuplicateStreamPolicy { DUPLICATE_STREAM_POLICY_UNSPECIFIED=0; DUPLICATE_STREAM_POLICY_REJECT_NEW=1; }
+enum DuplicateJobPolicy { DUPLICATE_JOB_POLICY_UNSPECIFIED=0; DUPLICATE_JOB_POLICY_REJECT=1; }
+enum RetryPolicy { RETRY_POLICY_UNSPECIFIED=0; RETRY_POLICY_SAFE_BEFORE_START=1; RETRY_POLICY_NEVER=2; }
+enum SshSessionState { SSH_SESSION_STATE_UNSPECIFIED=0; SSH_SESSION_STATE_PREPARING=1; SSH_SESSION_STATE_READY=2; SSH_SESSION_STATE_CLOSED=3; SSH_SESSION_STATE_EXPIRED=4; SSH_SESSION_STATE_FAILED=5; }
+
+message ErrorDetail { string field=1; string resource_id=2; bool retryable=3; uint32 retry_after_seconds=4; }
+message ProtocolError { ErrorCode code=1; string message=2; repeated ErrorDetail details=3; }
+message ProtocolLimits { uint32 max_message_bytes=1; uint32 max_output_bytes=2; uint32 max_output_chunk_bytes=3; uint32 max_metrics=4; uint32 max_labels_per_metric=5; uint32 max_capabilities=6; uint32 max_queue_depth=7; uint32 max_reason_bytes=8; uint32 max_command_bytes=9; uint32 max_unit_bytes=10; uint32 max_path_bytes=11; uint32 max_job_timeout_seconds=12; uint32 max_ssh_ttl_seconds=13; uint32 max_page_size=14; }
+message VersionRange { uint32 minimum=1; uint32 maximum=2; }
+message Capability { string name=1; uint32 version=2; }
+message EnrollRequest { string token=1; bytes csr_der=2; string validator_pin=3; string hostname=4; string architecture=5; }
+message EnrollResponse { string agent_id=1; bytes certificate_pem=2; bytes ca_certificate_pem=3; int64 expires_unix_ms=4; }
+// Agent identity is derived exclusively from mTLS transport context. Implementations
+// MUST reject a CSR whose subject identity differs from that authenticated identity.
+message RenewRequest { bytes csr_der=1; }
+message RenewResponse { bytes certificate_pem=1; int64 expires_unix_ms=2; }
+message AgentHello { string agent_id=1; VersionRange protocol=2; repeated Capability capabilities=3; string hostname=4; string boot_id=5; string os=6; string kernel=7; string architecture=8; ProtocolLimits limits=9; }
+message Heartbeat { int64 sent_unix_ms=1; }
+message ConnectionState { bool accepted=1; uint32 protocol_version=2; DuplicateStreamPolicy duplicate_stream_policy=3; DuplicateJobPolicy duplicate_job_policy=4; ProtocolLimits negotiated_limits=5; ProtocolError error=6; }
+message Metric { string name=1; double value=2; map<string,string> labels=3; }
+message MetricsSnapshot { int64 sampled_unix_ms=1; repeated Metric metrics=2; }
+message AuthorizationContext { Role role=1; string reason=2; bool confirmed=3; string request_id=4; }
+
+message ProcessListRequest { uint32 limit=1; }
+message ServiceListRequest { uint32 limit=1; }
+message ServiceRequest { string unit=1; }
+message JournalReadRequest { string unit=1; int64 since_unix_ms=2; int64 until_unix_ms=3; uint32 line_limit=4; }
+message CleanupPreviewRequest { repeated string allowed_paths=1; }
+message CleanupRunRequest { string preview_id=1; bytes preview_hash=2; int64 preview_expires_unix_ms=3; }
+message RebootRequest { string target_agent_id=1; string confirmation=2; int64 confirmation_expires_unix_ms=3; }
+message TypedOperation { oneof request { ProcessListRequest process_list=1; ServiceListRequest service_list=2; ServiceRequest service_status=3; ServiceRequest service_start=4; ServiceRequest service_stop=5; ServiceRequest service_restart=6; JournalReadRequest journal_read=7; CleanupPreviewRequest cleanup_preview=8; CleanupRunRequest cleanup_run=9; RebootRequest reboot=10; } }
+message ArbitraryCommand { string command=1; bool capture_output=2; }
+// idempotency_key identifies one logical submission; duplicate keys for an agent
+// are rejected. attempt starts at 1. dispatch_id is unique per dispatch. Validator
+// owns every field in Job. UnsafeOperation permits only RETRY_POLICY_NEVER and MUST
+// NOT be redispatched after UNKNOWN_RESULT; schema makes other policies unrepresentable.
+message SafeOperation { TypedOperation operation=1; RetryPolicy retry_policy=2; }
+message UnsafeOperation { oneof operation { CleanupRunRequest cleanup_run=1; RebootRequest reboot=2; ArbitraryCommand arbitrary_command=3; } }
+message Job { string id=1; string actor_id=2; string agent_id=3; int64 created_unix_ms=4; int64 deadline_unix_ms=5; AuthorizationContext authorization=6; oneof operation { SafeOperation safe_operation=7; UnsafeOperation unsafe_operation=8; } JobState state=9; uint32 attempt=10; string dispatch_id=11; string idempotency_key=12; }
+message JobResult { string job_id=1; JobState state=2; int32 exit_code=3; ProtocolError error=4; bool output_truncated=5; string dispatch_id=6; uint32 attempt=7; }
+message CancelJob { string job_id=1; string reason=2; int64 deadline_unix_ms=3; string request_id=4; }
+enum CancelOutcome { CANCEL_OUTCOME_UNSPECIFIED=0; CANCEL_OUTCOME_CANCELLED=1; CANCEL_OUTCOME_ALREADY_TERMINAL=2; CANCEL_OUTCOME_UNKNOWN_RESULT=3; CANCEL_OUTCOME_REJECTED=4; }
+// Acknowledgement is final. UNKNOWN_RESULT means completion cannot be proven and
+// the job MUST NOT be retried automatically.
+message CancelAcknowledgement { string job_id=1; string request_id=2; CancelOutcome outcome=3; JobState terminal_state=4; ProtocolError error=5; }
+message OutputChunk { string job_id=1; uint64 sequence=2; bytes data=3; bool stderr=4; bool final=5; }
+// Validator allocates loopback_port and unpredictable binding_token before asking
+// agent to open tunnel. Agent echoes both; validator verifies transport peer,
+// session, port, and token before marking ready.
+message PrepareSsh { string session_id=1; bytes public_key=2; int64 expires_unix_ms=3; uint32 loopback_port=4; bytes binding_token=5; }
+message SshReady { string session_id=1; uint32 validator_loopback_port=2; bytes host_key=3; bytes binding_token=4; }
+message CloseSsh { string session_id=1; string reason=2; }
+message AgentMessage { oneof payload { AgentHello hello=1; Heartbeat heartbeat=2; MetricsSnapshot metrics=3; JobResult job_result=4; OutputChunk output=5; SshReady ssh_ready=6; CancelAcknowledgement cancel_ack=7; } }
+message ValidatorMessage { oneof payload { ConnectionState connection=1; Job job=2; CancelJob cancel=3; PrepareSsh prepare_ssh=4; CloseSsh close_ssh=5; } }
+
+message LoginRequest { string username=1; string password=2; } message LoginResponse { string access_token=1; int64 expires_unix_ms=2; Role role=3; }
+message Agent { string id=1; string hostname=2; bool online=3; bool revoked=4; int64 last_seen_unix_ms=5; repeated Capability capabilities=6; }
+message ListAgentsRequest { uint32 page_size=1; string page_token=2; } message ListAgentsResponse { repeated Agent agents=1; string next_page_token=2; } message GetAgentRequest { string agent_id=1; }
+message GetMetricsRequest { string agent_id=1; int64 since_unix_ms=2; int64 until_unix_ms=3; uint32 page_size=4; string page_token=5; } message GetMetricsResponse { repeated MetricsSnapshot snapshots=1; string next_page_token=2; }
+// Client requests contain intent only. Validator derives actor, authorization,
+// job IDs, dispatch metadata, retry policy, state, and timestamps.
+message JobRequestContext { string agent_id=1; string reason=2; uint32 timeout_seconds=3; string idempotency_key=4; bool confirmed=5; }
+message ProcessListJobRequest { JobRequestContext context=1; ProcessListRequest request=2; }
+message ServiceListJobRequest { JobRequestContext context=1; ServiceListRequest request=2; }
+message ServiceJobRequest { JobRequestContext context=1; ServiceRequest request=2; }
+message JournalJobRequest { JobRequestContext context=1; JournalReadRequest request=2; }
+message CleanupPreviewJobRequest { JobRequestContext context=1; CleanupPreviewRequest request=2; }
+message CleanupRunJobRequest { JobRequestContext context=1; CleanupRunRequest request=2; }
+message RebootJobRequest { JobRequestContext context=1; RebootRequest request=2; }
+message ExecJobRequest { JobRequestContext context=1; ArbitraryCommand request=2; }
+message CancelJobRequest { string job_id=1; string reason=2; int64 deadline_unix_ms=3; }
+message PrepareSshRequest { string agent_id=1; bytes public_key=2; string reason=3; uint32 ttl_seconds=4; } message CloseSshRequest { string session_id=1; string reason=2; }
+message SshSession { string id=1; string agent_id=2; SshSessionState state=3; uint32 validator_loopback_port=4; int64 expires_unix_ms=5; bytes host_key=6; } message StreamJobOutputRequest { string job_id=1; }
+message AuditEvent { string id=1; string actor_id=2; string agent_id=3; string action=4; string reason=5; int64 occurred_unix_ms=6; }
+message ListAuditRequest { uint32 page_size=1; string page_token=2; string agent_id=3; } message ListAuditResponse { repeated AuditEvent events=1; string next_page_token=2; }
+message CreateEnrollmentTokenRequest { uint32 ttl_seconds=1; } message EnrollmentToken { string token=1; int64 expires_unix_ms=2; }
+message User { string id=1; string username=2; Role role=3; bool disabled=4; } message CreateUserRequest { string username=1; string password=2; Role role=3; } message ListUsersRequest { uint32 page_size=1; string page_token=2; } message ListUsersResponse { repeated User users=1; string next_page_token=2; } message SetUserRoleRequest { string user_id=1; Role role=2; }
+message SshKey { string id=1; string user_id=2; bytes public_key=3; string label=4; } message AddSshKeyRequest { bytes public_key=1; string label=2; } message ListSshKeysRequest { string user_id=1; uint32 page_size=2; string page_token=3; } message ListSshKeysResponse { repeated SshKey keys=1; string next_page_token=2; } message DeleteSshKeyRequest { string key_id=1; } message DeleteSshKeyResponse {}
