@@ -10,7 +10,10 @@ Group=silent-devops
 ExecStart=/usr/local/sbin/silent-devops-validator
 Restart=on-failure
 RestartSec=5s
-UMask=0077
+UMask=0007
+RuntimeDirectory=silent-devops
+RuntimeDirectoryMode=0750
+Environment=SILENT_DEVOPS_LOCAL_SOCKET=/run/silent-devops/validator.sock
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes

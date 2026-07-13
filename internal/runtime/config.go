@@ -13,10 +13,14 @@ type ValidatorConfig struct {
 	TokenKey                                                          []byte
 	Policies                                                          auth.EndpointPolicies
 	BootstrapUser, BootstrapPassword                                  string
+	LocalSocket                                                       string
 }
 
 func ParseValidatorConfig(getenv func(string) string) (ValidatorConfig, error) {
-	cfg := ValidatorConfig{Listen: getenv("SILENT_DEVOPS_LISTEN"), DB: getenv("SILENT_DEVOPS_DB"), TLSCert: getenv("SILENT_DEVOPS_TLS_CERT"), TLSKey: getenv("SILENT_DEVOPS_TLS_KEY"), ClientCA: getenv("SILENT_DEVOPS_CLIENT_CA"), AgentCA: getenv("SILENT_DEVOPS_AGENT_CA"), AgentCAPassphrase: getenv("SILENT_DEVOPS_AGENT_CA_PASSPHRASE"), TokenKey: []byte(getenv("SILENT_DEVOPS_TOKEN_KEY")), BootstrapUser: getenv("SILENT_DEVOPS_BOOTSTRAP_USER"), BootstrapPassword: getenv("SILENT_DEVOPS_BOOTSTRAP_PASSWORD")}
+	cfg := ValidatorConfig{Listen: getenv("SILENT_DEVOPS_LISTEN"), DB: getenv("SILENT_DEVOPS_DB"), TLSCert: getenv("SILENT_DEVOPS_TLS_CERT"), TLSKey: getenv("SILENT_DEVOPS_TLS_KEY"), ClientCA: getenv("SILENT_DEVOPS_CLIENT_CA"), AgentCA: getenv("SILENT_DEVOPS_AGENT_CA"), AgentCAPassphrase: getenv("SILENT_DEVOPS_AGENT_CA_PASSPHRASE"), TokenKey: []byte(getenv("SILENT_DEVOPS_TOKEN_KEY")), BootstrapUser: getenv("SILENT_DEVOPS_BOOTSTRAP_USER"), BootstrapPassword: getenv("SILENT_DEVOPS_BOOTSTRAP_PASSWORD"), LocalSocket: getenv("SILENT_DEVOPS_LOCAL_SOCKET")}
+	if cfg.LocalSocket == "" {
+		cfg.LocalSocket = "/run/silent-devops/validator.sock"
+	}
 	if cfg.Listen == "" || cfg.DB == "" || cfg.TLSCert == "" || cfg.TLSKey == "" || cfg.ClientCA == "" || cfg.AgentCA == "" || len(cfg.AgentCAPassphrase) < 16 || len(cfg.TokenKey) < 32 {
 		return cfg, errors.New("validator listen, DB, TLS certificate/key, client CA, encrypted agent CA/passphrase, and 32-byte token key required")
 	}

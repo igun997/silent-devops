@@ -100,8 +100,11 @@ func (ca *CA) SignAgentCSR(csrDER []byte, agentID string, now time.Time, validit
 	if err := csr.CheckSignature(); err != nil {
 		return nil, "", err
 	}
-	if agentID == "" || csr.Subject.CommonName != agentID {
-		return nil, "", errors.New("CSR identity mismatch")
+	if agentID == "" {
+		return nil, "", errors.New("agent identity required")
+	}
+	if csr.Subject.CommonName != "" {
+		return nil, "", errors.New("CSR must not select identity")
 	}
 	serial := randomSerial()
 	tmpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: agentID}, NotBefore: now.Add(-time.Minute), NotAfter: now.Add(validity), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}

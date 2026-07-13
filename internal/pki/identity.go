@@ -15,6 +15,10 @@ import (
 type IdentityRegistry struct{ db *sql.DB }
 
 func NewIdentityRegistry(db *sql.DB) *IdentityRegistry { return &IdentityRegistry{db: db} }
+func (r *IdentityRegistry) SetMetadata(ctx context.Context, id, hostname string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE agents SET hostname=? WHERE id=?", hostname, id)
+	return err
+}
 func (r *IdentityRegistry) Register(ctx context.Context, id, serial string, expires time.Time) error {
 	if id == "" || serial == "" {
 		return errors.New("agent identity and serial required")

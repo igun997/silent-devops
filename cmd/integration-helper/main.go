@@ -155,10 +155,10 @@ func verify(address string) error {
 	if err != nil || len(agents.Agents) != 3 {
 		return fmt.Errorf("agents=%d err=%v", len(agents.GetAgents()), err)
 	}
-	for _, id := range []string{"ubuntu-2204", "ubuntu-2404", "debian-12"} {
-		metrics, err := fleet.GetMetrics(ctx, &devopsv1.GetMetricsRequest{AgentId: id})
+	for _, agent := range agents.Agents {
+		metrics, err := fleet.GetMetrics(ctx, &devopsv1.GetMetricsRequest{AgentId: agent.Id})
 		if err != nil || len(metrics.Snapshots) == 0 {
-			return fmt.Errorf("metrics %s: %v", id, err)
+			return fmt.Errorf("metrics %s: %v", agent.Id, err)
 		}
 	}
 	viewer, err := fleet.CreateUser(ctx, &devopsv1.CreateUserRequest{Username: "viewer", Password: "viewer-password-strong", Role: devopsv1.Role_ROLE_VIEWER})
@@ -187,16 +187,16 @@ func verify(address string) error {
 		return err
 	}
 	opCtx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+opLogin.AccessToken))
-	jobCtx := &devopsv1.JobRequestContext{AgentId: "debian-12", Reason: "e2e process list", TimeoutSeconds: 30, IdempotencyKey: "e2e-process"}
+	jobCtx := &devopsv1.JobRequestContext{AgentId: agents.Agents[0].Id, Reason: "e2e process list", TimeoutSeconds: 30, IdempotencyKey: "e2e-process"}
 	job, err := fleet.ListProcesses(opCtx, &devopsv1.ProcessListJobRequest{Context: jobCtx, Request: &devopsv1.ProcessListRequest{Limit: 10}})
 	if err != nil {
 		return err
 	}
 	_ = job
-	if _, err := fleet.Exec(opCtx, &devopsv1.ExecJobRequest{Context: &devopsv1.JobRequestContext{AgentId: "debian-12", Reason: "denied", TimeoutSeconds: 30, IdempotencyKey: "operator-exec", Confirmed: true}, Request: &devopsv1.ArbitraryCommand{Command: "true"}}); err == nil {
+	if _, err := fleet.Exec(opCtx, &devopsv1.ExecJobRequest{Context: &devopsv1.JobRequestContext{AgentId: agents.Agents[0].Id, Reason: "denied", TimeoutSeconds: 30, IdempotencyKey: "operator-exec", Confirmed: true}, Request: &devopsv1.ArbitraryCommand{Command: "true"}}); err == nil {
 		return fmt.Errorf("operator exec accepted")
 	}
-	adminJob, err := fleet.Exec(ctx, &devopsv1.ExecJobRequest{Context: &devopsv1.JobRequestContext{AgentId: "debian-12", Reason: "e2e admin", TimeoutSeconds: 30, IdempotencyKey: "admin-exec", Confirmed: true}, Request: &devopsv1.ArbitraryCommand{Command: "printf e2e", CaptureOutput: true}})
+	adminJob, err := fleet.Exec(ctx, &devopsv1.ExecJobRequest{Context: &devopsv1.JobRequestContext{AgentId: agents.Agents[0].Id, Reason: "e2e admin", TimeoutSeconds: 30, IdempotencyKey: "admin-exec", Confirmed: true}, Request: &devopsv1.ArbitraryCommand{Command: "printf e2e", CaptureOutput: true}})
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func enroll(address, token, agentID, dir string) error {
 	if err != nil {
 		return err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: agentID}}, key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
 		return err
 	}
@@ -228,5 +228,5 @@ func enroll(address, token, agentID, dir string) error {
 	if err != nil {
 		return err
 	}
-	return pki.SaveAgentCredentials(dir, pki.AgentCredentials{AgentID: agentID, PrivateKey: key, CertificatePEM: response.CertificatePem, CAPEM: ca})
+	return pki.SaveAgentCredentials(dir, pki.AgentCredentials{AgentID: response.AgentId, PrivateKey: key, CertificatePEM: response.CertificatePem, CAPEM: ca})
 }

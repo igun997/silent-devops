@@ -35,7 +35,7 @@ func TestEncryptedCAAndAgentCertificate(t *testing.T) {
 		t.Fatal("CA key not encrypted")
 	}
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
-	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkixName("agent-1")}, key)
+	csrDER, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	certPEM, serial, err := ca.SignAgentCSR(csrDER, "agent-1", time.Now(), time.Hour)
 	if err != nil || serial == "" {
 		t.Fatal(err)

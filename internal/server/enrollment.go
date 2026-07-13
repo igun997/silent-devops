@@ -29,7 +29,7 @@ func (s Enrollment) Enroll(ctx context.Context, request *devopsv1.EnrollRequest)
 		return nil, status.Error(codes.FailedPrecondition, "enrollment unavailable")
 	}
 	csr, err := x509.ParseCertificateRequest(request.GetCsrDer())
-	if err != nil || csr.Subject.CommonName == "" {
+	if err != nil || csr.CheckSignature() != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid CSR")
 	}
 	now := time.Now
@@ -43,14 +43,21 @@ func (s Enrollment) Enroll(ctx context.Context, request *devopsv1.EnrollRequest)
 	if validity <= 0 {
 		validity = 24 * time.Hour
 	}
-	certificate, serial, err := s.CA.SignAgentCSR(request.GetCsrDer(), csr.Subject.CommonName, now(), validity)
+	agentID, err := randomHex(16)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "entropy unavailable")
+	}
+	certificate, serial, err := s.CA.SignAgentCSR(request.GetCsrDer(), agentID, now(), validity)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid CSR")
 	}
-	if err := s.Identities.Register(ctx, csr.Subject.CommonName, serial, now().Add(validity)); err != nil {
+	if err := s.Identities.Register(ctx, agentID, serial, now().Add(validity)); err != nil {
 		return nil, status.Error(codes.AlreadyExists, "agent identity exists")
 	}
-	return &devopsv1.EnrollResponse{AgentId: csr.Subject.CommonName, CertificatePem: certificate, CaCertificatePem: s.CA.CertificatePEM(), ExpiresUnixMs: now().Add(validity).UnixMilli()}, nil
+	if err := s.Identities.SetMetadata(ctx, agentID, request.GetHostname()); err != nil {
+		return nil, status.Error(codes.Unavailable, "identity metadata unavailable")
+	}
+	return &devopsv1.EnrollResponse{AgentId: agentID, CertificatePem: certificate, CaCertificatePem: s.CA.CertificatePEM(), ExpiresUnixMs: now().Add(validity).UnixMilli()}, nil
 }
 func (s Enrollment) Renew(ctx context.Context, request *devopsv1.RenewRequest) (*devopsv1.RenewResponse, error) {
 	id, err := mtlsID(ctx)
