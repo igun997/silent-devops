@@ -23,10 +23,13 @@ func main() {
 			return
 		}
 	}
-	if err := clientcli.Validate(stripFlags(args)); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, clientcli.Usage)
-		os.Exit(2)
+	tui := len(args) == 0 || args[0] == "tui"
+	if !tui {
+		if err := clientcli.Validate(stripFlags(args)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, clientcli.Usage)
+			os.Exit(2)
+		}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -40,6 +43,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer api.Close()
+	if tui {
+		if err := clientcli.RunTUI(api, hasFlag(args, "--no-color")); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	os.Exit(clientcli.Run(context.Background(), args, os.Stdout, os.Stderr, api, isTerminal(os.Stdout)))
 }
 func stripFlags(args []string) []string {
@@ -50,6 +60,14 @@ func stripFlags(args []string) []string {
 		}
 	}
 	return out
+}
+func hasFlag(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
 }
 func isTerminal(file *os.File) bool {
 	info, err := file.Stat()

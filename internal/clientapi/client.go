@@ -5,7 +5,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -79,18 +83,103 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
 	switch command {
 	case "agents":
-		if len(args) > 0 && args[0] == "show" {
-			if len(args) != 2 {
-				return nil, errors.New("agent ID required")
-			}
+		if len(args) == 2 && args[0] == "show" {
 			return a.fleet.GetAgent(ctx, &devopsv1.GetAgentRequest{AgentId: args[1]})
 		}
 		return a.fleet.ListAgents(ctx, &devopsv1.ListAgentsRequest{PageSize: 100})
+	case "stats":
+		if len(args) != 1 {
+			return nil, errors.New("agent ID required")
+		}
+		return a.fleet.GetMetrics(ctx, &devopsv1.GetMetricsRequest{AgentId: args[0], SinceUnixMs: time.Now().Add(-time.Hour).UnixMilli(), PageSize: 100})
+	case "services":
+		return a.services(ctx, args)
+	case "logs":
+		if len(args) != 2 {
+			return nil, errors.New("agent ID and unit required")
+		}
+		return a.fleet.ReadLogs(ctx, &devopsv1.JournalJobRequest{Context: jobContext(args[0], "read logs", false), Request: &devopsv1.JournalReadRequest{Unit: args[1], LineLimit: 200}})
+	case "cleanup":
+		if len(args) < 3 {
+			return nil, errors.New("cleanup action, agent ID, and value required")
+		}
+		if args[0] == "preview" {
+			return a.fleet.PreviewCleanup(ctx, &devopsv1.CleanupPreviewJobRequest{Context: jobContext(args[1], "cleanup preview", false), Request: &devopsv1.CleanupPreviewRequest{AllowedPaths: args[2:]}})
+		}
+		return nil, errors.New("cleanup run requires preview metadata")
+	case "reboot":
+		return a.fleet.Reboot(ctx, &devopsv1.RebootJobRequest{Context: jobContext(args[0], "reboot", true), Request: &devopsv1.RebootRequest{TargetAgentId: args[0], Confirmation: args[0], ConfirmationExpiresUnixMs: time.Now().Add(time.Minute).UnixMilli()}})
+	case "exec":
+		return a.fleet.Exec(ctx, &devopsv1.ExecJobRequest{Context: jobContext(args[0], "admin exec", true), Request: &devopsv1.ArbitraryCommand{Command: strings.Join(args[1:], " "), CaptureOutput: true}})
 	case "enroll-token":
-		return a.fleet.CreateEnrollmentToken(ctx, &devopsv1.CreateEnrollmentTokenRequest{TtlSeconds: 300})
+		if len(args) == 0 || args[0] == "create" {
+			return a.fleet.CreateEnrollmentToken(ctx, &devopsv1.CreateEnrollmentTokenRequest{TtlSeconds: 300})
+		}
+		if args[0] == "list" {
+			return a.fleet.ListEnrollmentTokens(ctx, &devopsv1.ListEnrollmentTokensRequest{PageSize: 100})
+		}
+		if len(args) == 2 && args[0] == "revoke" {
+			return a.fleet.RevokeEnrollmentToken(ctx, &devopsv1.RevokeEnrollmentTokenRequest{Id: args[1]})
+		}
+		return nil, errors.New("invalid enroll-token action")
 	case "users":
-		return a.fleet.ListUsers(ctx, &devopsv1.ListUsersRequest{PageSize: 100})
+		if len(args) == 0 || args[0] == "list" {
+			return a.fleet.ListUsers(ctx, &devopsv1.ListUsersRequest{PageSize: 100})
+		}
+		return nil, errors.New("invalid users action")
+	case "ssh-keys":
+		if len(args) == 0 || args[0] == "list" {
+			user := ""
+			if len(args) > 1 {
+				user = args[1]
+			}
+			return a.fleet.ListSshKeys(ctx, &devopsv1.ListSshKeysRequest{UserId: user, PageSize: 100})
+		}
+		if len(args) == 3 && args[0] == "add" {
+			key, err := os.ReadFile(args[1])
+			if err != nil {
+				return nil, err
+			}
+			return a.fleet.AddSshKey(ctx, &devopsv1.AddSshKeyRequest{PublicKey: key, Label: args[2]})
+		}
+		if len(args) == 2 && args[0] == "delete" {
+			return a.fleet.DeleteSshKey(ctx, &devopsv1.DeleteSshKeyRequest{KeyId: args[1]})
+		}
+		return nil, errors.New("invalid ssh-keys action")
+	case "audit":
+		return a.fleet.ListAudit(ctx, &devopsv1.ListAuditRequest{PageSize: 100})
+	case "ssh":
+		return nil, errors.New("ssh requires interactive OpenSSH workflow")
 	default:
-		return nil, errors.New("command not wired")
+		return nil, fmt.Errorf("unsupported command %q", command)
 	}
+}
+func jobContext(agent, reason string, confirmed bool) *devopsv1.JobRequestContext {
+	return &devopsv1.JobRequestContext{AgentId: agent, Reason: reason, TimeoutSeconds: 30, IdempotencyKey: strconv.FormatInt(time.Now().UnixNano(), 36), Confirmed: confirmed}
+}
+func (a *Adapter) services(ctx context.Context, args []string) (any, error) {
+	if len(args) < 2 {
+		return nil, errors.New("service action and agent ID required")
+	}
+	c := jobContext(args[1], "service "+args[0], args[0] != "list" && args[0] != "status")
+	switch args[0] {
+	case "list":
+		return a.fleet.ListServices(ctx, &devopsv1.ServiceListJobRequest{Context: c, Request: &devopsv1.ServiceListRequest{Limit: 200}})
+	case "status", "start", "stop", "restart":
+		if len(args) != 3 {
+			return nil, errors.New("unit required")
+		}
+		r := &devopsv1.ServiceJobRequest{Context: c, Request: &devopsv1.ServiceRequest{Unit: args[2]}}
+		switch args[0] {
+		case "status":
+			return a.fleet.GetService(ctx, r)
+		case "start":
+			return a.fleet.StartService(ctx, r)
+		case "stop":
+			return a.fleet.StopService(ctx, r)
+		default:
+			return a.fleet.RestartService(ctx, r)
+		}
+	}
+	return nil, errors.New("invalid service action")
 }
