@@ -29,7 +29,13 @@ func runLocal(ctx context.Context, args []string, out io.Writer, socket string) 
 		result, err = fleet.GetAgent(ctx, &devopsv1.GetAgentRequest{AgentId: args[2]})
 	case len(args) == 2 && args[0] == "metrics":
 		result, err = fleet.GetMetrics(ctx, &devopsv1.GetMetricsRequest{AgentId: args[1]})
-	case len(args) >= 2 && args[0] == "enroll-token" && args[1] == "create":
+	case len(args) == 2 && args[0] == "join-code" && args[1] == "list":
+		result, err = fleet.ListEnrollmentTokens(ctx, &devopsv1.ListEnrollmentTokensRequest{PageSize: 100})
+	case len(args) == 3 && args[0] == "join-code" && args[1] == "revoke":
+		result, err = fleet.RevokeEnrollmentToken(ctx, &devopsv1.RevokeEnrollmentTokenRequest{Id: args[2]})
+	case len(args) == 4 && args[0] == "agents" && args[1] == "revoke":
+		result, err = fleet.RevokeAgent(ctx, &devopsv1.RevokeAgentRequest{AgentId: args[2], Reason: args[3]})
+	case len(args) >= 2 && (args[0] == "enroll-token" || args[0] == "join-code") && args[1] == "create":
 		ttl := uint32(600)
 		if len(args) == 3 {
 			v, e := strconv.ParseUint(args[2], 10, 32)

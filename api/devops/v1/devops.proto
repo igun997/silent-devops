@@ -17,7 +17,7 @@ service FleetService {
   rpc Reboot(RebootJobRequest) returns (Job); rpc Exec(ExecJobRequest) returns (Job);
   rpc CancelJob(CancelJobRequest) returns (Job); rpc StreamJobOutput(StreamJobOutputRequest) returns (stream OutputChunk);
   rpc PrepareSsh(PrepareSshRequest) returns (SshSession); rpc CloseSsh(CloseSshRequest) returns (SshSession);
-  rpc ListAudit(ListAuditRequest) returns (ListAuditResponse); rpc CreateEnrollmentToken(CreateEnrollmentTokenRequest) returns (EnrollmentToken);
+  rpc ListAudit(ListAuditRequest) returns (ListAuditResponse); rpc CreateEnrollmentToken(CreateEnrollmentTokenRequest) returns (EnrollmentToken); rpc ListEnrollmentTokens(ListEnrollmentTokensRequest) returns (ListEnrollmentTokensResponse); rpc RevokeEnrollmentToken(RevokeEnrollmentTokenRequest) returns (EnrollmentToken); rpc RevokeAgent(RevokeAgentRequest) returns (Agent);
   rpc CreateUser(CreateUserRequest) returns (User); rpc ListUsers(ListUsersRequest) returns (ListUsersResponse); rpc SetUserRole(SetUserRoleRequest) returns (User);
   rpc AddSshKey(AddSshKeyRequest) returns (SshKey); rpc ListSshKeys(ListSshKeysRequest) returns (ListSshKeysResponse); rpc DeleteSshKey(DeleteSshKeyRequest) returns (DeleteSshKeyResponse);
 }
@@ -100,6 +100,6 @@ message PrepareSshRequest { string agent_id=1; bytes public_key=2; string reason
 message SshSession { string id=1; string agent_id=2; SshSessionState state=3; uint32 validator_loopback_port=4; int64 expires_unix_ms=5; bytes host_key=6; } message StreamJobOutputRequest { string job_id=1; }
 message AuditEvent { string id=1; string actor_id=2; string agent_id=3; string action=4; string reason=5; int64 occurred_unix_ms=6; }
 message ListAuditRequest { uint32 page_size=1; string page_token=2; string agent_id=3; } message ListAuditResponse { repeated AuditEvent events=1; string next_page_token=2; }
-message CreateEnrollmentTokenRequest { uint32 ttl_seconds=1; } message EnrollmentToken { string token=1; int64 expires_unix_ms=2; }
+message CreateEnrollmentTokenRequest { uint32 ttl_seconds=1; } message EnrollmentToken { string token=1; int64 expires_unix_ms=2; string id=3; bool consumed=4; bool revoked=5; } message ListEnrollmentTokensRequest { uint32 page_size=1; } message ListEnrollmentTokensResponse { repeated EnrollmentToken tokens=1; } message RevokeEnrollmentTokenRequest { string id=1; } message RevokeAgentRequest { string agent_id=1; string reason=2; }
 message User { string id=1; string username=2; Role role=3; bool disabled=4; } message CreateUserRequest { string username=1; string password=2; Role role=3; } message ListUsersRequest { uint32 page_size=1; string page_token=2; } message ListUsersResponse { repeated User users=1; string next_page_token=2; } message SetUserRoleRequest { string user_id=1; Role role=2; }
 message SshKey { string id=1; string user_id=2; bytes public_key=3; string label=4; } message AddSshKeyRequest { bytes public_key=1; string label=2; } message ListSshKeysRequest { string user_id=1; uint32 page_size=2; string page_token=3; } message ListSshKeysResponse { repeated SshKey keys=1; string next_page_token=2; } message DeleteSshKeyRequest { string key_id=1; } message DeleteSshKeyResponse {}

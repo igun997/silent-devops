@@ -385,6 +385,9 @@ const (
 	FleetService_CloseSsh_FullMethodName              = "/devops.v1.FleetService/CloseSsh"
 	FleetService_ListAudit_FullMethodName             = "/devops.v1.FleetService/ListAudit"
 	FleetService_CreateEnrollmentToken_FullMethodName = "/devops.v1.FleetService/CreateEnrollmentToken"
+	FleetService_ListEnrollmentTokens_FullMethodName  = "/devops.v1.FleetService/ListEnrollmentTokens"
+	FleetService_RevokeEnrollmentToken_FullMethodName = "/devops.v1.FleetService/RevokeEnrollmentToken"
+	FleetService_RevokeAgent_FullMethodName           = "/devops.v1.FleetService/RevokeAgent"
 	FleetService_CreateUser_FullMethodName            = "/devops.v1.FleetService/CreateUser"
 	FleetService_ListUsers_FullMethodName             = "/devops.v1.FleetService/ListUsers"
 	FleetService_SetUserRole_FullMethodName           = "/devops.v1.FleetService/SetUserRole"
@@ -417,6 +420,9 @@ type FleetServiceClient interface {
 	CloseSsh(ctx context.Context, in *CloseSshRequest, opts ...grpc.CallOption) (*SshSession, error)
 	ListAudit(ctx context.Context, in *ListAuditRequest, opts ...grpc.CallOption) (*ListAuditResponse, error)
 	CreateEnrollmentToken(ctx context.Context, in *CreateEnrollmentTokenRequest, opts ...grpc.CallOption) (*EnrollmentToken, error)
+	ListEnrollmentTokens(ctx context.Context, in *ListEnrollmentTokensRequest, opts ...grpc.CallOption) (*ListEnrollmentTokensResponse, error)
+	RevokeEnrollmentToken(ctx context.Context, in *RevokeEnrollmentTokenRequest, opts ...grpc.CallOption) (*EnrollmentToken, error)
+	RevokeAgent(ctx context.Context, in *RevokeAgentRequest, opts ...grpc.CallOption) (*Agent, error)
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	SetUserRole(ctx context.Context, in *SetUserRoleRequest, opts ...grpc.CallOption) (*User, error)
@@ -642,6 +648,36 @@ func (c *fleetServiceClient) CreateEnrollmentToken(ctx context.Context, in *Crea
 	return out, nil
 }
 
+func (c *fleetServiceClient) ListEnrollmentTokens(ctx context.Context, in *ListEnrollmentTokensRequest, opts ...grpc.CallOption) (*ListEnrollmentTokensResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEnrollmentTokensResponse)
+	err := c.cc.Invoke(ctx, FleetService_ListEnrollmentTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) RevokeEnrollmentToken(ctx context.Context, in *RevokeEnrollmentTokenRequest, opts ...grpc.CallOption) (*EnrollmentToken, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnrollmentToken)
+	err := c.cc.Invoke(ctx, FleetService_RevokeEnrollmentToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) RevokeAgent(ctx context.Context, in *RevokeAgentRequest, opts ...grpc.CallOption) (*Agent, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Agent)
+	err := c.cc.Invoke(ctx, FleetService_RevokeAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fleetServiceClient) CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(User)
@@ -726,6 +762,9 @@ type FleetServiceServer interface {
 	CloseSsh(context.Context, *CloseSshRequest) (*SshSession, error)
 	ListAudit(context.Context, *ListAuditRequest) (*ListAuditResponse, error)
 	CreateEnrollmentToken(context.Context, *CreateEnrollmentTokenRequest) (*EnrollmentToken, error)
+	ListEnrollmentTokens(context.Context, *ListEnrollmentTokensRequest) (*ListEnrollmentTokensResponse, error)
+	RevokeEnrollmentToken(context.Context, *RevokeEnrollmentTokenRequest) (*EnrollmentToken, error)
+	RevokeAgent(context.Context, *RevokeAgentRequest) (*Agent, error)
 	CreateUser(context.Context, *CreateUserRequest) (*User, error)
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	SetUserRole(context.Context, *SetUserRoleRequest) (*User, error)
@@ -801,6 +840,15 @@ func (UnimplementedFleetServiceServer) ListAudit(context.Context, *ListAuditRequ
 }
 func (UnimplementedFleetServiceServer) CreateEnrollmentToken(context.Context, *CreateEnrollmentTokenRequest) (*EnrollmentToken, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateEnrollmentToken not implemented")
+}
+func (UnimplementedFleetServiceServer) ListEnrollmentTokens(context.Context, *ListEnrollmentTokensRequest) (*ListEnrollmentTokensResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListEnrollmentTokens not implemented")
+}
+func (UnimplementedFleetServiceServer) RevokeEnrollmentToken(context.Context, *RevokeEnrollmentTokenRequest) (*EnrollmentToken, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeEnrollmentToken not implemented")
+}
+func (UnimplementedFleetServiceServer) RevokeAgent(context.Context, *RevokeAgentRequest) (*Agent, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeAgent not implemented")
 }
 func (UnimplementedFleetServiceServer) CreateUser(context.Context, *CreateUserRequest) (*User, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateUser not implemented")
@@ -1194,6 +1242,60 @@ func _FleetService_CreateEnrollmentToken_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetService_ListEnrollmentTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEnrollmentTokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).ListEnrollmentTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_ListEnrollmentTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).ListEnrollmentTokens(ctx, req.(*ListEnrollmentTokensRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_RevokeEnrollmentToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeEnrollmentTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).RevokeEnrollmentToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_RevokeEnrollmentToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).RevokeEnrollmentToken(ctx, req.(*RevokeEnrollmentTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_RevokeAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeAgentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).RevokeAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_RevokeAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).RevokeAgent(ctx, req.(*RevokeAgentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FleetService_CreateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateUserRequest)
 	if err := dec(in); err != nil {
@@ -1384,6 +1486,18 @@ var FleetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateEnrollmentToken",
 			Handler:    _FleetService_CreateEnrollmentToken_Handler,
+		},
+		{
+			MethodName: "ListEnrollmentTokens",
+			Handler:    _FleetService_ListEnrollmentTokens_Handler,
+		},
+		{
+			MethodName: "RevokeEnrollmentToken",
+			Handler:    _FleetService_RevokeEnrollmentToken_Handler,
+		},
+		{
+			MethodName: "RevokeAgent",
+			Handler:    _FleetService_RevokeAgent_Handler,
 		},
 		{
 			MethodName: "CreateUser",

@@ -146,13 +146,55 @@ func (m *EnrollmentManager) ConsumeToken(ctx context.Context, token string, now 
 		return errors.New("invalid enrollment token")
 	}
 	hash := argon2.IDKey([]byte(token), raw[:16], 1, 32*1024, 1, 32)
-	result, err := m.db.ExecContext(ctx, "UPDATE enrollment_tokens SET consumed_unix_ms=? WHERE token_hash=? AND consumed_unix_ms IS NULL AND expires_unix_ms>=?", now.UnixMilli(), hash, now.UnixMilli())
+	result, err := m.db.ExecContext(ctx, "UPDATE enrollment_tokens SET consumed_unix_ms=? WHERE token_hash=? AND consumed_unix_ms IS NULL AND revoked_unix_ms IS NULL AND expires_unix_ms>=?", now.UnixMilli(), hash, now.UnixMilli())
 	if err != nil {
 		return err
 	}
 	n, _ := result.RowsAffected()
 	if n != 1 {
 		return errors.New("invalid or expired enrollment token")
+	}
+	return nil
+}
+func (m *EnrollmentManager) List(ctx context.Context, limit int) ([]struct {
+	ID                string
+	Expires           int64
+	Consumed, Revoked bool
+}, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	rows, err := m.db.QueryContext(ctx, "SELECT id,expires_unix_ms,consumed_unix_ms IS NOT NULL,revoked_unix_ms IS NOT NULL FROM enrollment_tokens ORDER BY expires_unix_ms DESC LIMIT ?", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []struct {
+		ID                string
+		Expires           int64
+		Consumed, Revoked bool
+	}
+	for rows.Next() {
+		var item struct {
+			ID                string
+			Expires           int64
+			Consumed, Revoked bool
+		}
+		if err := rows.Scan(&item.ID, &item.Expires, &item.Consumed, &item.Revoked); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+func (m *EnrollmentManager) Revoke(ctx context.Context, id string, now time.Time) error {
+	result, err := m.db.ExecContext(ctx, "UPDATE enrollment_tokens SET revoked_unix_ms=? WHERE id=? AND consumed_unix_ms IS NULL AND revoked_unix_ms IS NULL", now.UnixMilli(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n != 1 {
+		return errors.New("join code not found or inactive")
 	}
 	return nil
 }

@@ -4788,6 +4788,9 @@ type EnrollmentToken struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	ExpiresUnixMs int64                  `protobuf:"varint,2,opt,name=expires_unix_ms,json=expiresUnixMs,proto3" json:"expires_unix_ms,omitempty"`
+	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	Consumed      bool                   `protobuf:"varint,4,opt,name=consumed,proto3" json:"consumed,omitempty"`
+	Revoked       bool                   `protobuf:"varint,5,opt,name=revoked,proto3" json:"revoked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4836,6 +4839,211 @@ func (x *EnrollmentToken) GetExpiresUnixMs() int64 {
 	return 0
 }
 
+func (x *EnrollmentToken) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *EnrollmentToken) GetConsumed() bool {
+	if x != nil {
+		return x.Consumed
+	}
+	return false
+}
+
+func (x *EnrollmentToken) GetRevoked() bool {
+	if x != nil {
+		return x.Revoked
+	}
+	return false
+}
+
+type ListEnrollmentTokensRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PageSize      uint32                 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEnrollmentTokensRequest) Reset() {
+	*x = ListEnrollmentTokensRequest{}
+	mi := &file_api_devops_v1_devops_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEnrollmentTokensRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEnrollmentTokensRequest) ProtoMessage() {}
+
+func (x *ListEnrollmentTokensRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_devops_v1_devops_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEnrollmentTokensRequest.ProtoReflect.Descriptor instead.
+func (*ListEnrollmentTokensRequest) Descriptor() ([]byte, []int) {
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ListEnrollmentTokensRequest) GetPageSize() uint32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListEnrollmentTokensResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tokens        []*EnrollmentToken     `protobuf:"bytes,1,rep,name=tokens,proto3" json:"tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEnrollmentTokensResponse) Reset() {
+	*x = ListEnrollmentTokensResponse{}
+	mi := &file_api_devops_v1_devops_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEnrollmentTokensResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEnrollmentTokensResponse) ProtoMessage() {}
+
+func (x *ListEnrollmentTokensResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_devops_v1_devops_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEnrollmentTokensResponse.ProtoReflect.Descriptor instead.
+func (*ListEnrollmentTokensResponse) Descriptor() ([]byte, []int) {
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ListEnrollmentTokensResponse) GetTokens() []*EnrollmentToken {
+	if x != nil {
+		return x.Tokens
+	}
+	return nil
+}
+
+type RevokeEnrollmentTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeEnrollmentTokenRequest) Reset() {
+	*x = RevokeEnrollmentTokenRequest{}
+	mi := &file_api_devops_v1_devops_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeEnrollmentTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeEnrollmentTokenRequest) ProtoMessage() {}
+
+func (x *RevokeEnrollmentTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_devops_v1_devops_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeEnrollmentTokenRequest.ProtoReflect.Descriptor instead.
+func (*RevokeEnrollmentTokenRequest) Descriptor() ([]byte, []int) {
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *RevokeEnrollmentTokenRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RevokeAgentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeAgentRequest) Reset() {
+	*x = RevokeAgentRequest{}
+	mi := &file_api_devops_v1_devops_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeAgentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeAgentRequest) ProtoMessage() {}
+
+func (x *RevokeAgentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_devops_v1_devops_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeAgentRequest.ProtoReflect.Descriptor instead.
+func (*RevokeAgentRequest) Descriptor() ([]byte, []int) {
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *RevokeAgentRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
+func (x *RevokeAgentRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -4848,7 +5056,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[63]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4860,7 +5068,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[63]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4873,7 +5081,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{63}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *User) GetId() string {
@@ -4915,7 +5123,7 @@ type CreateUserRequest struct {
 
 func (x *CreateUserRequest) Reset() {
 	*x = CreateUserRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[64]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4927,7 +5135,7 @@ func (x *CreateUserRequest) String() string {
 func (*CreateUserRequest) ProtoMessage() {}
 
 func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[64]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4940,7 +5148,7 @@ func (x *CreateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateUserRequest.ProtoReflect.Descriptor instead.
 func (*CreateUserRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{64}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *CreateUserRequest) GetUsername() string {
@@ -4974,7 +5182,7 @@ type ListUsersRequest struct {
 
 func (x *ListUsersRequest) Reset() {
 	*x = ListUsersRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[65]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4986,7 +5194,7 @@ func (x *ListUsersRequest) String() string {
 func (*ListUsersRequest) ProtoMessage() {}
 
 func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[65]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4999,7 +5207,7 @@ func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListUsersRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{65}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ListUsersRequest) GetPageSize() uint32 {
@@ -5026,7 +5234,7 @@ type ListUsersResponse struct {
 
 func (x *ListUsersResponse) Reset() {
 	*x = ListUsersResponse{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[66]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5038,7 +5246,7 @@ func (x *ListUsersResponse) String() string {
 func (*ListUsersResponse) ProtoMessage() {}
 
 func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[66]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5051,7 +5259,7 @@ func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListUsersResponse) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{66}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ListUsersResponse) GetUsers() []*User {
@@ -5078,7 +5286,7 @@ type SetUserRoleRequest struct {
 
 func (x *SetUserRoleRequest) Reset() {
 	*x = SetUserRoleRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[67]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5090,7 +5298,7 @@ func (x *SetUserRoleRequest) String() string {
 func (*SetUserRoleRequest) ProtoMessage() {}
 
 func (x *SetUserRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[67]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5103,7 +5311,7 @@ func (x *SetUserRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetUserRoleRequest.ProtoReflect.Descriptor instead.
 func (*SetUserRoleRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{67}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *SetUserRoleRequest) GetUserId() string {
@@ -5132,7 +5340,7 @@ type SshKey struct {
 
 func (x *SshKey) Reset() {
 	*x = SshKey{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[68]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5144,7 +5352,7 @@ func (x *SshKey) String() string {
 func (*SshKey) ProtoMessage() {}
 
 func (x *SshKey) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[68]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5157,7 +5365,7 @@ func (x *SshKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SshKey.ProtoReflect.Descriptor instead.
 func (*SshKey) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{68}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *SshKey) GetId() string {
@@ -5198,7 +5406,7 @@ type AddSshKeyRequest struct {
 
 func (x *AddSshKeyRequest) Reset() {
 	*x = AddSshKeyRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[69]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5210,7 +5418,7 @@ func (x *AddSshKeyRequest) String() string {
 func (*AddSshKeyRequest) ProtoMessage() {}
 
 func (x *AddSshKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[69]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5223,7 +5431,7 @@ func (x *AddSshKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddSshKeyRequest.ProtoReflect.Descriptor instead.
 func (*AddSshKeyRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{69}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *AddSshKeyRequest) GetPublicKey() []byte {
@@ -5251,7 +5459,7 @@ type ListSshKeysRequest struct {
 
 func (x *ListSshKeysRequest) Reset() {
 	*x = ListSshKeysRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[70]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5263,7 +5471,7 @@ func (x *ListSshKeysRequest) String() string {
 func (*ListSshKeysRequest) ProtoMessage() {}
 
 func (x *ListSshKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[70]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5276,7 +5484,7 @@ func (x *ListSshKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSshKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListSshKeysRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{70}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListSshKeysRequest) GetUserId() string {
@@ -5310,7 +5518,7 @@ type ListSshKeysResponse struct {
 
 func (x *ListSshKeysResponse) Reset() {
 	*x = ListSshKeysResponse{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[71]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5322,7 +5530,7 @@ func (x *ListSshKeysResponse) String() string {
 func (*ListSshKeysResponse) ProtoMessage() {}
 
 func (x *ListSshKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[71]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5335,7 +5543,7 @@ func (x *ListSshKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSshKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListSshKeysResponse) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{71}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListSshKeysResponse) GetKeys() []*SshKey {
@@ -5361,7 +5569,7 @@ type DeleteSshKeyRequest struct {
 
 func (x *DeleteSshKeyRequest) Reset() {
 	*x = DeleteSshKeyRequest{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[72]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5373,7 +5581,7 @@ func (x *DeleteSshKeyRequest) String() string {
 func (*DeleteSshKeyRequest) ProtoMessage() {}
 
 func (x *DeleteSshKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[72]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5386,7 +5594,7 @@ func (x *DeleteSshKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSshKeyRequest.ProtoReflect.Descriptor instead.
 func (*DeleteSshKeyRequest) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{72}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *DeleteSshKeyRequest) GetKeyId() string {
@@ -5404,7 +5612,7 @@ type DeleteSshKeyResponse struct {
 
 func (x *DeleteSshKeyResponse) Reset() {
 	*x = DeleteSshKeyResponse{}
-	mi := &file_api_devops_v1_devops_proto_msgTypes[73]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5416,7 +5624,7 @@ func (x *DeleteSshKeyResponse) String() string {
 func (*DeleteSshKeyResponse) ProtoMessage() {}
 
 func (x *DeleteSshKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_devops_v1_devops_proto_msgTypes[73]
+	mi := &file_api_devops_v1_devops_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5429,7 +5637,7 @@ func (x *DeleteSshKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSshKeyResponse.ProtoReflect.Descriptor instead.
 func (*DeleteSshKeyResponse) Descriptor() ([]byte, []int) {
-	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{73}
+	return file_api_devops_v1_devops_proto_rawDescGZIP(), []int{77}
 }
 
 var File_api_devops_v1_devops_proto protoreflect.FileDescriptor
@@ -5763,10 +5971,22 @@ const file_api_devops_v1_devops_proto_rawDesc = "" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"?\n" +
 	"\x1cCreateEnrollmentTokenRequest\x12\x1f\n" +
 	"\vttl_seconds\x18\x01 \x01(\rR\n" +
-	"ttlSeconds\"O\n" +
+	"ttlSeconds\"\x95\x01\n" +
 	"\x0fEnrollmentToken\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12&\n" +
-	"\x0fexpires_unix_ms\x18\x02 \x01(\x03R\rexpiresUnixMs\"s\n" +
+	"\x0fexpires_unix_ms\x18\x02 \x01(\x03R\rexpiresUnixMs\x12\x0e\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\x12\x1a\n" +
+	"\bconsumed\x18\x04 \x01(\bR\bconsumed\x12\x18\n" +
+	"\arevoked\x18\x05 \x01(\bR\arevoked\":\n" +
+	"\x1bListEnrollmentTokensRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\rR\bpageSize\"R\n" +
+	"\x1cListEnrollmentTokensResponse\x122\n" +
+	"\x06tokens\x18\x01 \x03(\v2\x1a.devops.v1.EnrollmentTokenR\x06tokens\".\n" +
+	"\x1cRevokeEnrollmentTokenRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"G\n" +
+	"\x12RevokeAgentRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"s\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12#\n" +
@@ -5871,7 +6091,7 @@ const file_api_devops_v1_devops_proto_rawDesc = "" +
 	"\fAgentService\x12C\n" +
 	"\aConnect\x12\x17.devops.v1.AgentMessage\x1a\x1b.devops.v1.ValidatorMessage(\x010\x012I\n" +
 	"\vAuthService\x12:\n" +
-	"\x05Login\x12\x17.devops.v1.LoginRequest\x1a\x18.devops.v1.LoginResponse2\xd6\r\n" +
+	"\x05Login\x12\x17.devops.v1.LoginRequest\x1a\x18.devops.v1.LoginResponse2\xdd\x0f\n" +
 	"\fFleetService\x12I\n" +
 	"\n" +
 	"ListAgents\x12\x1c.devops.v1.ListAgentsRequest\x1a\x1d.devops.v1.ListAgentsResponse\x128\n" +
@@ -5897,7 +6117,10 @@ const file_api_devops_v1_devops_proto_rawDesc = "" +
 	"PrepareSsh\x12\x1c.devops.v1.PrepareSshRequest\x1a\x15.devops.v1.SshSession\x12=\n" +
 	"\bCloseSsh\x12\x1a.devops.v1.CloseSshRequest\x1a\x15.devops.v1.SshSession\x12F\n" +
 	"\tListAudit\x12\x1b.devops.v1.ListAuditRequest\x1a\x1c.devops.v1.ListAuditResponse\x12\\\n" +
-	"\x15CreateEnrollmentToken\x12'.devops.v1.CreateEnrollmentTokenRequest\x1a\x1a.devops.v1.EnrollmentToken\x12;\n" +
+	"\x15CreateEnrollmentToken\x12'.devops.v1.CreateEnrollmentTokenRequest\x1a\x1a.devops.v1.EnrollmentToken\x12g\n" +
+	"\x14ListEnrollmentTokens\x12&.devops.v1.ListEnrollmentTokensRequest\x1a'.devops.v1.ListEnrollmentTokensResponse\x12\\\n" +
+	"\x15RevokeEnrollmentToken\x12'.devops.v1.RevokeEnrollmentTokenRequest\x1a\x1a.devops.v1.EnrollmentToken\x12>\n" +
+	"\vRevokeAgent\x12\x1d.devops.v1.RevokeAgentRequest\x1a\x10.devops.v1.Agent\x12;\n" +
 	"\n" +
 	"CreateUser\x12\x1c.devops.v1.CreateUserRequest\x1a\x0f.devops.v1.User\x12F\n" +
 	"\tListUsers\x12\x1b.devops.v1.ListUsersRequest\x1a\x1c.devops.v1.ListUsersResponse\x12=\n" +
@@ -5919,7 +6142,7 @@ func file_api_devops_v1_devops_proto_rawDescGZIP() []byte {
 }
 
 var file_api_devops_v1_devops_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_api_devops_v1_devops_proto_msgTypes = make([]protoimpl.MessageInfo, 75)
+var file_api_devops_v1_devops_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
 var file_api_devops_v1_devops_proto_goTypes = []any{
 	(ErrorCode)(0),                       // 0: devops.v1.ErrorCode
 	(Role)(0),                            // 1: devops.v1.Role
@@ -5992,18 +6215,22 @@ var file_api_devops_v1_devops_proto_goTypes = []any{
 	(*ListAuditResponse)(nil),            // 68: devops.v1.ListAuditResponse
 	(*CreateEnrollmentTokenRequest)(nil), // 69: devops.v1.CreateEnrollmentTokenRequest
 	(*EnrollmentToken)(nil),              // 70: devops.v1.EnrollmentToken
-	(*User)(nil),                         // 71: devops.v1.User
-	(*CreateUserRequest)(nil),            // 72: devops.v1.CreateUserRequest
-	(*ListUsersRequest)(nil),             // 73: devops.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),            // 74: devops.v1.ListUsersResponse
-	(*SetUserRoleRequest)(nil),           // 75: devops.v1.SetUserRoleRequest
-	(*SshKey)(nil),                       // 76: devops.v1.SshKey
-	(*AddSshKeyRequest)(nil),             // 77: devops.v1.AddSshKeyRequest
-	(*ListSshKeysRequest)(nil),           // 78: devops.v1.ListSshKeysRequest
-	(*ListSshKeysResponse)(nil),          // 79: devops.v1.ListSshKeysResponse
-	(*DeleteSshKeyRequest)(nil),          // 80: devops.v1.DeleteSshKeyRequest
-	(*DeleteSshKeyResponse)(nil),         // 81: devops.v1.DeleteSshKeyResponse
-	nil,                                  // 82: devops.v1.Metric.LabelsEntry
+	(*ListEnrollmentTokensRequest)(nil),  // 71: devops.v1.ListEnrollmentTokensRequest
+	(*ListEnrollmentTokensResponse)(nil), // 72: devops.v1.ListEnrollmentTokensResponse
+	(*RevokeEnrollmentTokenRequest)(nil), // 73: devops.v1.RevokeEnrollmentTokenRequest
+	(*RevokeAgentRequest)(nil),           // 74: devops.v1.RevokeAgentRequest
+	(*User)(nil),                         // 75: devops.v1.User
+	(*CreateUserRequest)(nil),            // 76: devops.v1.CreateUserRequest
+	(*ListUsersRequest)(nil),             // 77: devops.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),            // 78: devops.v1.ListUsersResponse
+	(*SetUserRoleRequest)(nil),           // 79: devops.v1.SetUserRoleRequest
+	(*SshKey)(nil),                       // 80: devops.v1.SshKey
+	(*AddSshKeyRequest)(nil),             // 81: devops.v1.AddSshKeyRequest
+	(*ListSshKeysRequest)(nil),           // 82: devops.v1.ListSshKeysRequest
+	(*ListSshKeysResponse)(nil),          // 83: devops.v1.ListSshKeysResponse
+	(*DeleteSshKeyRequest)(nil),          // 84: devops.v1.DeleteSshKeyRequest
+	(*DeleteSshKeyResponse)(nil),         // 85: devops.v1.DeleteSshKeyResponse
+	nil,                                  // 86: devops.v1.Metric.LabelsEntry
 }
 var file_api_devops_v1_devops_proto_depIdxs = []int32{
 	0,   // 0: devops.v1.ProtocolError.code:type_name -> devops.v1.ErrorCode
@@ -6015,7 +6242,7 @@ var file_api_devops_v1_devops_proto_depIdxs = []int32{
 	4,   // 6: devops.v1.ConnectionState.duplicate_job_policy:type_name -> devops.v1.DuplicateJobPolicy
 	10,  // 7: devops.v1.ConnectionState.negotiated_limits:type_name -> devops.v1.ProtocolLimits
 	9,   // 8: devops.v1.ConnectionState.error:type_name -> devops.v1.ProtocolError
-	82,  // 9: devops.v1.Metric.labels:type_name -> devops.v1.Metric.LabelsEntry
+	86,  // 9: devops.v1.Metric.labels:type_name -> devops.v1.Metric.LabelsEntry
 	20,  // 10: devops.v1.MetricsSnapshot.metrics:type_name -> devops.v1.Metric
 	1,   // 11: devops.v1.AuthorizationContext.role:type_name -> devops.v1.Role
 	23,  // 12: devops.v1.TypedOperation.process_list:type_name -> devops.v1.ProcessListRequest
@@ -6076,76 +6303,83 @@ var file_api_devops_v1_devops_proto_depIdxs = []int32{
 	31,  // 67: devops.v1.ExecJobRequest.request:type_name -> devops.v1.ArbitraryCommand
 	6,   // 68: devops.v1.SshSession.state:type_name -> devops.v1.SshSessionState
 	66,  // 69: devops.v1.ListAuditResponse.events:type_name -> devops.v1.AuditEvent
-	1,   // 70: devops.v1.User.role:type_name -> devops.v1.Role
-	1,   // 71: devops.v1.CreateUserRequest.role:type_name -> devops.v1.Role
-	71,  // 72: devops.v1.ListUsersResponse.users:type_name -> devops.v1.User
-	1,   // 73: devops.v1.SetUserRoleRequest.role:type_name -> devops.v1.Role
-	76,  // 74: devops.v1.ListSshKeysResponse.keys:type_name -> devops.v1.SshKey
-	13,  // 75: devops.v1.EnrollmentService.Enroll:input_type -> devops.v1.EnrollRequest
-	15,  // 76: devops.v1.EnrollmentService.Renew:input_type -> devops.v1.RenewRequest
-	42,  // 77: devops.v1.AgentService.Connect:input_type -> devops.v1.AgentMessage
-	44,  // 78: devops.v1.AuthService.Login:input_type -> devops.v1.LoginRequest
-	47,  // 79: devops.v1.FleetService.ListAgents:input_type -> devops.v1.ListAgentsRequest
-	49,  // 80: devops.v1.FleetService.GetAgent:input_type -> devops.v1.GetAgentRequest
-	50,  // 81: devops.v1.FleetService.GetMetrics:input_type -> devops.v1.GetMetricsRequest
-	53,  // 82: devops.v1.FleetService.ListProcesses:input_type -> devops.v1.ProcessListJobRequest
-	54,  // 83: devops.v1.FleetService.ListServices:input_type -> devops.v1.ServiceListJobRequest
-	55,  // 84: devops.v1.FleetService.GetService:input_type -> devops.v1.ServiceJobRequest
-	55,  // 85: devops.v1.FleetService.StartService:input_type -> devops.v1.ServiceJobRequest
-	55,  // 86: devops.v1.FleetService.StopService:input_type -> devops.v1.ServiceJobRequest
-	55,  // 87: devops.v1.FleetService.RestartService:input_type -> devops.v1.ServiceJobRequest
-	56,  // 88: devops.v1.FleetService.ReadLogs:input_type -> devops.v1.JournalJobRequest
-	57,  // 89: devops.v1.FleetService.PreviewCleanup:input_type -> devops.v1.CleanupPreviewJobRequest
-	58,  // 90: devops.v1.FleetService.RunCleanup:input_type -> devops.v1.CleanupRunJobRequest
-	59,  // 91: devops.v1.FleetService.Reboot:input_type -> devops.v1.RebootJobRequest
-	60,  // 92: devops.v1.FleetService.Exec:input_type -> devops.v1.ExecJobRequest
-	61,  // 93: devops.v1.FleetService.CancelJob:input_type -> devops.v1.CancelJobRequest
-	65,  // 94: devops.v1.FleetService.StreamJobOutput:input_type -> devops.v1.StreamJobOutputRequest
-	62,  // 95: devops.v1.FleetService.PrepareSsh:input_type -> devops.v1.PrepareSshRequest
-	63,  // 96: devops.v1.FleetService.CloseSsh:input_type -> devops.v1.CloseSshRequest
-	67,  // 97: devops.v1.FleetService.ListAudit:input_type -> devops.v1.ListAuditRequest
-	69,  // 98: devops.v1.FleetService.CreateEnrollmentToken:input_type -> devops.v1.CreateEnrollmentTokenRequest
-	72,  // 99: devops.v1.FleetService.CreateUser:input_type -> devops.v1.CreateUserRequest
-	73,  // 100: devops.v1.FleetService.ListUsers:input_type -> devops.v1.ListUsersRequest
-	75,  // 101: devops.v1.FleetService.SetUserRole:input_type -> devops.v1.SetUserRoleRequest
-	77,  // 102: devops.v1.FleetService.AddSshKey:input_type -> devops.v1.AddSshKeyRequest
-	78,  // 103: devops.v1.FleetService.ListSshKeys:input_type -> devops.v1.ListSshKeysRequest
-	80,  // 104: devops.v1.FleetService.DeleteSshKey:input_type -> devops.v1.DeleteSshKeyRequest
-	14,  // 105: devops.v1.EnrollmentService.Enroll:output_type -> devops.v1.EnrollResponse
-	16,  // 106: devops.v1.EnrollmentService.Renew:output_type -> devops.v1.RenewResponse
-	43,  // 107: devops.v1.AgentService.Connect:output_type -> devops.v1.ValidatorMessage
-	45,  // 108: devops.v1.AuthService.Login:output_type -> devops.v1.LoginResponse
-	48,  // 109: devops.v1.FleetService.ListAgents:output_type -> devops.v1.ListAgentsResponse
-	46,  // 110: devops.v1.FleetService.GetAgent:output_type -> devops.v1.Agent
-	51,  // 111: devops.v1.FleetService.GetMetrics:output_type -> devops.v1.GetMetricsResponse
-	34,  // 112: devops.v1.FleetService.ListProcesses:output_type -> devops.v1.Job
-	34,  // 113: devops.v1.FleetService.ListServices:output_type -> devops.v1.Job
-	34,  // 114: devops.v1.FleetService.GetService:output_type -> devops.v1.Job
-	34,  // 115: devops.v1.FleetService.StartService:output_type -> devops.v1.Job
-	34,  // 116: devops.v1.FleetService.StopService:output_type -> devops.v1.Job
-	34,  // 117: devops.v1.FleetService.RestartService:output_type -> devops.v1.Job
-	34,  // 118: devops.v1.FleetService.ReadLogs:output_type -> devops.v1.Job
-	34,  // 119: devops.v1.FleetService.PreviewCleanup:output_type -> devops.v1.Job
-	34,  // 120: devops.v1.FleetService.RunCleanup:output_type -> devops.v1.Job
-	34,  // 121: devops.v1.FleetService.Reboot:output_type -> devops.v1.Job
-	34,  // 122: devops.v1.FleetService.Exec:output_type -> devops.v1.Job
-	34,  // 123: devops.v1.FleetService.CancelJob:output_type -> devops.v1.Job
-	38,  // 124: devops.v1.FleetService.StreamJobOutput:output_type -> devops.v1.OutputChunk
-	64,  // 125: devops.v1.FleetService.PrepareSsh:output_type -> devops.v1.SshSession
-	64,  // 126: devops.v1.FleetService.CloseSsh:output_type -> devops.v1.SshSession
-	68,  // 127: devops.v1.FleetService.ListAudit:output_type -> devops.v1.ListAuditResponse
-	70,  // 128: devops.v1.FleetService.CreateEnrollmentToken:output_type -> devops.v1.EnrollmentToken
-	71,  // 129: devops.v1.FleetService.CreateUser:output_type -> devops.v1.User
-	74,  // 130: devops.v1.FleetService.ListUsers:output_type -> devops.v1.ListUsersResponse
-	71,  // 131: devops.v1.FleetService.SetUserRole:output_type -> devops.v1.User
-	76,  // 132: devops.v1.FleetService.AddSshKey:output_type -> devops.v1.SshKey
-	79,  // 133: devops.v1.FleetService.ListSshKeys:output_type -> devops.v1.ListSshKeysResponse
-	81,  // 134: devops.v1.FleetService.DeleteSshKey:output_type -> devops.v1.DeleteSshKeyResponse
-	105, // [105:135] is the sub-list for method output_type
-	75,  // [75:105] is the sub-list for method input_type
-	75,  // [75:75] is the sub-list for extension type_name
-	75,  // [75:75] is the sub-list for extension extendee
-	0,   // [0:75] is the sub-list for field type_name
+	70,  // 70: devops.v1.ListEnrollmentTokensResponse.tokens:type_name -> devops.v1.EnrollmentToken
+	1,   // 71: devops.v1.User.role:type_name -> devops.v1.Role
+	1,   // 72: devops.v1.CreateUserRequest.role:type_name -> devops.v1.Role
+	75,  // 73: devops.v1.ListUsersResponse.users:type_name -> devops.v1.User
+	1,   // 74: devops.v1.SetUserRoleRequest.role:type_name -> devops.v1.Role
+	80,  // 75: devops.v1.ListSshKeysResponse.keys:type_name -> devops.v1.SshKey
+	13,  // 76: devops.v1.EnrollmentService.Enroll:input_type -> devops.v1.EnrollRequest
+	15,  // 77: devops.v1.EnrollmentService.Renew:input_type -> devops.v1.RenewRequest
+	42,  // 78: devops.v1.AgentService.Connect:input_type -> devops.v1.AgentMessage
+	44,  // 79: devops.v1.AuthService.Login:input_type -> devops.v1.LoginRequest
+	47,  // 80: devops.v1.FleetService.ListAgents:input_type -> devops.v1.ListAgentsRequest
+	49,  // 81: devops.v1.FleetService.GetAgent:input_type -> devops.v1.GetAgentRequest
+	50,  // 82: devops.v1.FleetService.GetMetrics:input_type -> devops.v1.GetMetricsRequest
+	53,  // 83: devops.v1.FleetService.ListProcesses:input_type -> devops.v1.ProcessListJobRequest
+	54,  // 84: devops.v1.FleetService.ListServices:input_type -> devops.v1.ServiceListJobRequest
+	55,  // 85: devops.v1.FleetService.GetService:input_type -> devops.v1.ServiceJobRequest
+	55,  // 86: devops.v1.FleetService.StartService:input_type -> devops.v1.ServiceJobRequest
+	55,  // 87: devops.v1.FleetService.StopService:input_type -> devops.v1.ServiceJobRequest
+	55,  // 88: devops.v1.FleetService.RestartService:input_type -> devops.v1.ServiceJobRequest
+	56,  // 89: devops.v1.FleetService.ReadLogs:input_type -> devops.v1.JournalJobRequest
+	57,  // 90: devops.v1.FleetService.PreviewCleanup:input_type -> devops.v1.CleanupPreviewJobRequest
+	58,  // 91: devops.v1.FleetService.RunCleanup:input_type -> devops.v1.CleanupRunJobRequest
+	59,  // 92: devops.v1.FleetService.Reboot:input_type -> devops.v1.RebootJobRequest
+	60,  // 93: devops.v1.FleetService.Exec:input_type -> devops.v1.ExecJobRequest
+	61,  // 94: devops.v1.FleetService.CancelJob:input_type -> devops.v1.CancelJobRequest
+	65,  // 95: devops.v1.FleetService.StreamJobOutput:input_type -> devops.v1.StreamJobOutputRequest
+	62,  // 96: devops.v1.FleetService.PrepareSsh:input_type -> devops.v1.PrepareSshRequest
+	63,  // 97: devops.v1.FleetService.CloseSsh:input_type -> devops.v1.CloseSshRequest
+	67,  // 98: devops.v1.FleetService.ListAudit:input_type -> devops.v1.ListAuditRequest
+	69,  // 99: devops.v1.FleetService.CreateEnrollmentToken:input_type -> devops.v1.CreateEnrollmentTokenRequest
+	71,  // 100: devops.v1.FleetService.ListEnrollmentTokens:input_type -> devops.v1.ListEnrollmentTokensRequest
+	73,  // 101: devops.v1.FleetService.RevokeEnrollmentToken:input_type -> devops.v1.RevokeEnrollmentTokenRequest
+	74,  // 102: devops.v1.FleetService.RevokeAgent:input_type -> devops.v1.RevokeAgentRequest
+	76,  // 103: devops.v1.FleetService.CreateUser:input_type -> devops.v1.CreateUserRequest
+	77,  // 104: devops.v1.FleetService.ListUsers:input_type -> devops.v1.ListUsersRequest
+	79,  // 105: devops.v1.FleetService.SetUserRole:input_type -> devops.v1.SetUserRoleRequest
+	81,  // 106: devops.v1.FleetService.AddSshKey:input_type -> devops.v1.AddSshKeyRequest
+	82,  // 107: devops.v1.FleetService.ListSshKeys:input_type -> devops.v1.ListSshKeysRequest
+	84,  // 108: devops.v1.FleetService.DeleteSshKey:input_type -> devops.v1.DeleteSshKeyRequest
+	14,  // 109: devops.v1.EnrollmentService.Enroll:output_type -> devops.v1.EnrollResponse
+	16,  // 110: devops.v1.EnrollmentService.Renew:output_type -> devops.v1.RenewResponse
+	43,  // 111: devops.v1.AgentService.Connect:output_type -> devops.v1.ValidatorMessage
+	45,  // 112: devops.v1.AuthService.Login:output_type -> devops.v1.LoginResponse
+	48,  // 113: devops.v1.FleetService.ListAgents:output_type -> devops.v1.ListAgentsResponse
+	46,  // 114: devops.v1.FleetService.GetAgent:output_type -> devops.v1.Agent
+	51,  // 115: devops.v1.FleetService.GetMetrics:output_type -> devops.v1.GetMetricsResponse
+	34,  // 116: devops.v1.FleetService.ListProcesses:output_type -> devops.v1.Job
+	34,  // 117: devops.v1.FleetService.ListServices:output_type -> devops.v1.Job
+	34,  // 118: devops.v1.FleetService.GetService:output_type -> devops.v1.Job
+	34,  // 119: devops.v1.FleetService.StartService:output_type -> devops.v1.Job
+	34,  // 120: devops.v1.FleetService.StopService:output_type -> devops.v1.Job
+	34,  // 121: devops.v1.FleetService.RestartService:output_type -> devops.v1.Job
+	34,  // 122: devops.v1.FleetService.ReadLogs:output_type -> devops.v1.Job
+	34,  // 123: devops.v1.FleetService.PreviewCleanup:output_type -> devops.v1.Job
+	34,  // 124: devops.v1.FleetService.RunCleanup:output_type -> devops.v1.Job
+	34,  // 125: devops.v1.FleetService.Reboot:output_type -> devops.v1.Job
+	34,  // 126: devops.v1.FleetService.Exec:output_type -> devops.v1.Job
+	34,  // 127: devops.v1.FleetService.CancelJob:output_type -> devops.v1.Job
+	38,  // 128: devops.v1.FleetService.StreamJobOutput:output_type -> devops.v1.OutputChunk
+	64,  // 129: devops.v1.FleetService.PrepareSsh:output_type -> devops.v1.SshSession
+	64,  // 130: devops.v1.FleetService.CloseSsh:output_type -> devops.v1.SshSession
+	68,  // 131: devops.v1.FleetService.ListAudit:output_type -> devops.v1.ListAuditResponse
+	70,  // 132: devops.v1.FleetService.CreateEnrollmentToken:output_type -> devops.v1.EnrollmentToken
+	72,  // 133: devops.v1.FleetService.ListEnrollmentTokens:output_type -> devops.v1.ListEnrollmentTokensResponse
+	70,  // 134: devops.v1.FleetService.RevokeEnrollmentToken:output_type -> devops.v1.EnrollmentToken
+	46,  // 135: devops.v1.FleetService.RevokeAgent:output_type -> devops.v1.Agent
+	75,  // 136: devops.v1.FleetService.CreateUser:output_type -> devops.v1.User
+	78,  // 137: devops.v1.FleetService.ListUsers:output_type -> devops.v1.ListUsersResponse
+	75,  // 138: devops.v1.FleetService.SetUserRole:output_type -> devops.v1.User
+	80,  // 139: devops.v1.FleetService.AddSshKey:output_type -> devops.v1.SshKey
+	83,  // 140: devops.v1.FleetService.ListSshKeys:output_type -> devops.v1.ListSshKeysResponse
+	85,  // 141: devops.v1.FleetService.DeleteSshKey:output_type -> devops.v1.DeleteSshKeyResponse
+	109, // [109:142] is the sub-list for method output_type
+	76,  // [76:109] is the sub-list for method input_type
+	76,  // [76:76] is the sub-list for extension type_name
+	76,  // [76:76] is the sub-list for extension extendee
+	0,   // [0:76] is the sub-list for field type_name
 }
 
 func init() { file_api_devops_v1_devops_proto_init() }
@@ -6196,7 +6430,7 @@ func file_api_devops_v1_devops_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_devops_v1_devops_proto_rawDesc), len(file_api_devops_v1_devops_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   75,
+			NumMessages:   79,
 			NumExtensions: 0,
 			NumServices:   4,
 		},
