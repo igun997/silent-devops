@@ -29,11 +29,32 @@ func (d *Dashboard) View() string {
 		content = sidebar + "\n" + main
 	}
 
-	footer := d.help.View(d.keys)
-	if d.err != nil {
-		footer = d.th.errText.Render("Error: " + d.err.Error())
+	footer := d.footerView()
+	top := header + "\n" + tabs + "\n\n" + content
+	// Sticky footer: pad the gap between body and footer so the help bar always
+	// sits on the last terminal row.
+	if d.height > 0 {
+		gap := d.height - lipgloss.Height(top) - lipgloss.Height(footer)
+		if gap > 0 {
+			top += strings.Repeat("\n", gap)
+		}
 	}
-	return header + "\n" + tabs + "\n\n" + content + "\n" + footer
+	return top + "\n" + footer
+}
+
+func (d *Dashboard) footerView() string {
+	if d.searching {
+		return d.th.footer.Render("search: ") + d.search.View() +
+			"  " + d.th.subtle.Render("enter apply · esc cancel")
+	}
+	if d.err != nil {
+		return d.th.errText.Render("Error: "+d.err.Error()) + "\n" + d.help.View(d.keys)
+	}
+	hint := ""
+	if tablePanel(d.panel) {
+		hint = d.th.subtle.Render("  · / filter")
+	}
+	return d.help.View(d.keys) + hint
 }
 
 func (d *Dashboard) headerView() string {
@@ -108,8 +129,11 @@ func (d *Dashboard) panelView() string {
 		return head + "  " + pct + "\n\n" + d.viewport.View()
 	case 4, 5, 6:
 		head := d.th.heading.Render(strings.ToUpper(panels[d.panel]))
-		count := d.th.subtle.Render(fmt.Sprintf("%d rows", len(d.table.Rows())))
-		return head + "  " + count + "\n\n" + d.table.View()
+		meta := fmt.Sprintf("%d rows", len(d.table.Rows()))
+		if d.filter != "" {
+			meta += fmt.Sprintf(" · filter %q", d.filter)
+		}
+		return head + "  " + d.th.subtle.Render(meta) + "\n\n" + d.table.View()
 	case 7:
 		d.help.ShowAll = true
 		return d.th.heading.Render("KEY BINDINGS") + "\n\n" + d.help.View(d.keys) +

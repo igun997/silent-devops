@@ -3,6 +3,7 @@ package clientcli
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -50,6 +51,9 @@ type Dashboard struct {
 	table                          table.Model
 	user                           textinput.Model
 	pass                           textinput.Model
+	search                         textinput.Model
+	searching                      bool
+	filter                         string
 }
 
 func NewDashboard(api API, noColor bool) *Dashboard {
@@ -78,6 +82,10 @@ func NewDashboard(api API, noColor bool) *Dashboard {
 	pass.CharLimit = 128
 	pass.EchoMode = textinput.EchoPassword
 	pass.EchoCharacter = '•'
+	search := textinput.New()
+	search.Placeholder = "filter…"
+	search.Prompt = ""
+	search.CharLimit = 64
 
 	d := &Dashboard{
 		API:      api,
@@ -92,6 +100,7 @@ func NewDashboard(api API, noColor bool) *Dashboard {
 		viewport: viewport.New(80, 20),
 		user:     user,
 		pass:     pass,
+		search:   search,
 	}
 	d.table = d.newTable()
 	return d
@@ -203,23 +212,69 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if d.login {
 			return d, d.updateLogin(m)
 		}
+		if d.searching {
+			return d, d.updateSearch(m)
+		}
 		return d.handleKey(m)
 	}
 	return d, nil
 }
 
+// updateSearch drives the table filter input while search mode is active.
+func (d *Dashboard) updateSearch(k tea.KeyMsg) tea.Cmd {
+	switch k.String() {
+	case "esc":
+		d.searching = false
+		d.search.SetValue("")
+		d.filter = ""
+		d.search.Blur()
+		d.fillTable()
+		return nil
+	case "enter":
+		d.searching = false
+		d.filter = strings.TrimSpace(d.search.Value())
+		d.search.Blur()
+		d.fillTable()
+		return nil
+	}
+	var cmd tea.Cmd
+	d.search, cmd = d.search.Update(k)
+	d.filter = strings.TrimSpace(d.search.Value())
+	d.fillTable()
+	return cmd
+}
+
 func (d *Dashboard) handleKey(m tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// On tabular panels arrow/j/k move the table cursor (navigate inside
+	// content). Use [/] to change the selected agent there instead.
+	if tablePanel(d.panel) && (key.Matches(m, d.keys.Up) || key.Matches(m, d.keys.Down)) {
+		var cmd tea.Cmd
+		d.table, cmd = d.table.Update(m)
+		return d, cmd
+	}
 	switch {
 	case key.Matches(m, d.keys.Quit):
 		return d, tea.Quit
-	case key.Matches(m, d.keys.Up):
+	case key.Matches(m, d.keys.AgentPrev):
 		if d.selected > 0 {
 			d.selected--
 			d.data = nil
 			return d, d.loadPanel()
 		}
-	case key.Matches(m, d.keys.Down):
+	case key.Matches(m, d.keys.AgentNext):
 		if d.selected+1 < len(d.agents) {
+			d.selected++
+			d.data = nil
+			return d, d.loadPanel()
+		}
+	case key.Matches(m, d.keys.Up):
+		if !tablePanel(d.panel) && d.selected > 0 {
+			d.selected--
+			d.data = nil
+			return d, d.loadPanel()
+		}
+	case key.Matches(m, d.keys.Down):
+		if !tablePanel(d.panel) && d.selected+1 < len(d.agents) {
 			d.selected++
 			d.data = nil
 			return d, d.loadPanel()
@@ -237,6 +292,13 @@ func (d *Dashboard) handleKey(m tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return d, tea.Batch(d.loadAgents(), d.loadPanel())
 	case key.Matches(m, d.keys.SSH):
 		return d.startSSH()
+	}
+	if tablePanel(d.panel) && m.String() == "/" {
+		d.searching = true
+		d.search.SetValue(d.filter)
+		d.search.CursorEnd()
+		d.search.Focus()
+		return d, nil
 	}
 	if scrollPanel(d.panel) {
 		switch m.String() {

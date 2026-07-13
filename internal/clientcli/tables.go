@@ -79,11 +79,34 @@ func (d *Dashboard) fillTable() {
 			}
 		}
 	}
+	rows = filterRows(rows, d.filter)
+	// Clear rows before swapping columns: SetColumns re-renders existing rows,
+	// and a stale row from a prior panel can have fewer cells than the new
+	// column set, causing an index-out-of-range panic in renderRow.
+	d.table.SetRows(nil)
 	d.table.SetColumns(cols)
 	d.table.SetRows(rows)
 	d.table.SetWidth(w)
 	d.table.SetHeight(max(4, d.viewport.Height))
 	d.table.GotoTop()
+}
+
+// filterRows keeps rows whose any cell contains the query (case-insensitive).
+func filterRows(rows []table.Row, query string) []table.Row {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return rows
+	}
+	out := make([]table.Row, 0, len(rows))
+	for _, r := range rows {
+		for _, cell := range r {
+			if strings.Contains(strings.ToLower(cell), q) {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func colw(total int, frac float64, min int) int {
