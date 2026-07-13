@@ -20,8 +20,7 @@ func (a dashboardAPI) Call(context.Context, string, []string) (any, error) {
 }
 func TestDashboardLoadsNavigatesResizesAndShowsErrors(t *testing.T) {
 	d := NewDashboard(dashboardAPI{}, true)
-	msg := d.Init()().(resultMsg)
-	d.Update(msg)
+	d.Update(d.loadAgents()())
 	d.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	view := d.View()
 	for _, want := range []string{"Silent DevOps", "alpha", "online", "a1"} {
