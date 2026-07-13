@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"path/filepath"
 	"testing"
 	"time"
@@ -33,14 +34,23 @@ func TestEnrollConsumesTokenAndRegistersIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
-	csr, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "agent-1"}}, key)
+	csr, _ := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{}}, key)
 	srv := server.Enrollment{CA: ca, Tokens: tokens, Identities: pki.NewIdentityRegistry(s.DB()), Now: func() time.Time { return now }, Validity: time.Hour}
 	response, err := srv.Enroll(context.Background(), &devopsv1.EnrollRequest{Token: token, CsrDer: csr, Hostname: "host"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.AgentId != "agent-1" || len(response.CertificatePem) == 0 {
-		t.Fatal("bad response")
+	if response.AgentId == "" || response.AgentId == "host" || len(response.CertificatePem) == 0 {
+		t.Fatal("validator did not assign identity")
+	}
+	block, _ := pem.Decode(response.CertificatePem)
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil || certificate.Subject.CommonName != response.AgentId {
+		t.Fatal("certificate identity mismatch")
+	}
+	var hostname string
+	if err := s.DB().QueryRow("SELECT hostname FROM agents WHERE id=?", response.AgentId).Scan(&hostname); err != nil || hostname != "host" {
+		t.Fatal("hostname metadata not stored")
 	}
 	if _, err := srv.Enroll(context.Background(), &devopsv1.EnrollRequest{Token: token, CsrDer: csr}); err == nil {
 		t.Fatal("token reused")

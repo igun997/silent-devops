@@ -34,14 +34,15 @@ func TestRealRolesAndNoAgentPorts(t *testing.T) {
 	}
 }
 func TestAgentsActuallyEnrollConnectAndPublishMetrics(t *testing.T) {
-	for _, agent := range []string{"ubuntu-2204", "ubuntu-2404", "debian-12"} {
-		out := compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"select count(*) from connections where agent_id='"+agent+"' and state='online'\"")
+	for _, service := range []string{"agent-ubuntu-2204", "agent-ubuntu-2404", "agent-debian-12"} {
+		id := strings.TrimSpace(compose(t, "exec", "-T", service, "cat", "/creds/agent-id"))
+		out := compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"select count(*) from connections where agent_id='"+id+"' and state='online'\"")
 		if strings.TrimSpace(out) != "1" {
-			t.Fatalf("%s offline: %q", agent, out)
+			t.Fatalf("%s offline: %q", service, out)
 		}
-		out = compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"select count(*) from metrics_current where agent_id='"+agent+"'\"")
+		out = compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"select count(*) from metrics_current where agent_id='"+id+"'\"")
 		if strings.TrimSpace(out) != "1" {
-			t.Fatalf("%s metrics missing: %q", agent, out)
+			t.Fatalf("%s metrics missing: %q", service, out)
 		}
 	}
 }
@@ -69,15 +70,18 @@ func TestDeniedCIDRAndTokenReplay(t *testing.T) {
 func TestExpiredTokenRetentionAndRevocation(t *testing.T) {
 	compose(t, "exec", "-T", "allowed-client", "integration-helper", "expired-token", "validator:8443")
 	old := "1000"
-	compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"insert into audit_events(id,action,reason,occurred_unix_ms) values('old','old','retention',"+old+"); insert into metrics_minute(agent_id,bucket_unix_ms,payload) values('debian-12',"+old+",'{}'); update agents set revoked_unix_ms=strftime('%s','now')*1000 where id='ubuntu-2404';\"")
+	revokedID := strings.TrimSpace(compose(t, "exec", "-T", "agent-ubuntu-2404", "cat", "/creds/agent-id"))
+	debianID := strings.TrimSpace(compose(t, "exec", "-T", "agent-debian-12", "cat", "/creds/agent-id"))
+	compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"insert into audit_events(id,action,reason,occurred_unix_ms) values('old','old','retention',"+old+"); insert into metrics_minute(agent_id,bucket_unix_ms,payload) values('"+debianID+"',"+old+",'{}'); update agents set revoked_unix_ms=strftime('%s','now')*1000 where id='"+revokedID+"';\"")
 	compose(t, "restart", "validator")
 	compose(t, "restart", "agent-ubuntu-2404")
-	compose(t, "exec", "-T", "validator", "sh", "-c", "sleep 2; test \"$(sqlite3 /state/devops.db \"select state from connections where agent_id='ubuntu-2404'\")\" != online")
+	compose(t, "exec", "-T", "validator", "sh", "-c", "sleep 2; test \"$(sqlite3 /state/devops.db \"select state from connections where agent_id='"+revokedID+"'\")\" != online")
 }
 func TestRestartReconciliation(t *testing.T) {
 	compose(t, "restart", "validator")
+	id := strings.TrimSpace(compose(t, "exec", "-T", "agent-debian-12", "cat", "/creds/agent-id"))
 	compose(t, "restart", "agent-debian-12")
-	compose(t, "exec", "-T", "validator", "sh", "-c", "for i in $(seq 1 100); do [ \"$(sqlite3 /state/devops.db \"select state from connections where agent_id='debian-12'\")\" = online ] && exit 0; sleep .1; done; exit 1")
+	compose(t, "exec", "-T", "validator", "sh", "-c", "for i in $(seq 1 100); do [ \"$(sqlite3 /state/devops.db \"select state from connections where agent_id='"+id+"'\")\" = online ] && exit 0; sleep .1; done; exit 1")
 	out := compose(t, "exec", "-T", "validator", "sh", "-c", "sqlite3 /state/devops.db \"select count(*) from jobs where idempotency_key='admin-exec' and state=4\"")
 	if strings.TrimSpace(out) != "1" {
 		t.Fatalf("destructive job replay/state changed: %q", out)

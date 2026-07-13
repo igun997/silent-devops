@@ -131,6 +131,17 @@ func (r *Registry) release(id string, g uint64, now time.Time) {
 		e.lastSeen = now
 	}
 }
+func (r *Registry) Disconnect(id string, now time.Time) {
+	r.mu.Lock()
+	e := r.entries[id]
+	if e != nil && e.session != nil {
+		e.online = false
+		close(e.session.queue)
+		e.session = nil
+		e.lastSeen = now
+	}
+	r.mu.Unlock()
+}
 func (r *Registry) Dispatch(ctx context.Context, id string, message *devopsv1.ValidatorMessage) error {
 	r.mu.Lock()
 	e := r.entries[id]

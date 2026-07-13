@@ -64,12 +64,14 @@ bin/client-linux-arm64
 
 ## Install
 
-Download matching release archive on target instance, extract it, then install:
+Download matching release archive, verify checksum, then install only required role:
 
 ```sh
 tar -xzf silent-devops-linux-amd64.tar.gz
 cd silent-devops-linux-amd64
-sudo ./install.sh
+sudo ./install.sh validator # validator host
+sudo ./install.sh agent     # managed host
+sudo ./install.sh client    # optional remote workstation
 ```
 
 Installer places:
@@ -100,7 +102,11 @@ sudo journalctl -u silent-devops-validator -f
 
 ## Configure agent
 
-Create one-time enrollment token through admin client, enroll agent so its private key is generated locally, then configure validator address and credential directory.
+Create one-time token on validator, then run pinned one-command join. Agent private key is generated locally and token is not stored.
+
+```sh
+sudo silent-devops-agent join validator.example.com:8443 ONE_TIME_TOKEN --pin 'sha256/BASE64_FINGERPRINT'
+```
 
 ```sh
 sudo systemctl edit silent-devops-agent

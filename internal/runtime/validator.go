@@ -6,14 +6,19 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"os/user"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	devopsv1 "silent-devops/api/devops/v1"
 	"silent-devops/internal/auth"
+	"silent-devops/internal/localcontrol"
 	"silent-devops/internal/metrics"
 	"silent-devops/internal/pki"
 	"silent-devops/internal/registry"
@@ -78,7 +83,39 @@ func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
 	if err := sshSessions.Reconcile(ctx, time.Now()); err != nil {
 		return err
 	}
-	devopsv1.RegisterFleetServiceServer(server, serverapi.Fleet{DB: s.DB(), Tokens: tokens, Registry: agentRegistry, SSH: sshSessions})
+	fleet := serverapi.Fleet{DB: s.DB(), Tokens: tokens, Registry: agentRegistry, SSH: sshSessions}
+	devopsv1.RegisterFleetServiceServer(server, fleet)
+	if err := os.MkdirAll(filepath.Dir(cfg.LocalSocket), 0750); err != nil {
+		return err
+	}
+	_ = os.Remove(cfg.LocalSocket)
+	localListener, err := net.Listen("unix", cfg.LocalSocket)
+	if err != nil {
+		return err
+	}
+	defer localListener.Close()
+	group, err := user.LookupGroup("silent-devops-admin")
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+	if err := os.Chown(cfg.LocalSocket, -1, gid); err != nil {
+		return err
+	}
+	if err := os.Chmod(cfg.LocalSocket, 0660); err != nil {
+		return err
+	}
+	localServer := grpc.NewServer(grpc.Creds(localcontrol.Credentials{}), grpc.UnaryInterceptor(localcontrol.UnaryInterceptor()))
+	devopsv1.RegisterFleetServiceServer(localServer, fleet)
+	go func() { <-ctx.Done(); localServer.GracefulStop() }()
+	go func() {
+		if err := localServer.Serve(localListener); err != nil && err != grpc.ErrServerStopped {
+			log.Printf("local control server stopped: %v", err)
+		}
+	}()
 	messageHandler := registry.MessageHandler{DB: s.DB(), Metrics: metrics.NewRepository(s.DB()), SSH: sshSessions}
 	devopsv1.RegisterAgentServiceServer(server, &registry.AgentServer{Registry: agentRegistry, Persistence: persistence, Authorize: identities.AuthorizeConnection, Handle: messageHandler.Handle})
 	stopped := make(chan struct{})

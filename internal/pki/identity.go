@@ -22,6 +22,13 @@ func (r *IdentityRegistry) Register(ctx context.Context, id, serial string, expi
 	_, err := r.db.ExecContext(ctx, "INSERT INTO agents(id,certificate_serial,certificate_expires_unix_ms,created_unix_ms) VALUES(?,?,?,?)", id, serial, expires.UnixMilli(), time.Now().UnixMilli())
 	return err
 }
+func (r *IdentityRegistry) RegisterWithMetadata(ctx context.Context, id, serial, hostname string, expires, created time.Time) error {
+	if id == "" || serial == "" {
+		return errors.New("agent identity and serial required")
+	}
+	_, err := r.db.ExecContext(ctx, "INSERT INTO agents(id,certificate_serial,certificate_expires_unix_ms,hostname,created_unix_ms) VALUES(?,?,?,?,?)", id, serial, expires.UnixMilli(), hostname, created.UnixMilli())
+	return err
+}
 func (r *IdentityRegistry) AuthorizeRenewal(ctx context.Context, id string, now time.Time) error {
 	var revoked sql.NullInt64
 	var expires int64

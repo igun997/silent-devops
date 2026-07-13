@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -78,7 +79,9 @@ func (s Fleet) CreateEnrollmentToken(ctx context.Context, request *devopsv1.Crea
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, "token creation failed")
 	}
-	return &devopsv1.EnrollmentToken{Token: token, ExpiresUnixMs: now().Add(ttl).UnixMilli()}, nil
+	idRaw, _ := hex.DecodeString(token)
+	sum := sha256.Sum256(idRaw)
+	return &devopsv1.EnrollmentToken{Token: token, Id: hex.EncodeToString(sum[:16]), ExpiresUnixMs: now().Add(ttl).UnixMilli()}, nil
 }
 func (s Fleet) CreateUser(ctx context.Context, request *devopsv1.CreateUserRequest) (*devopsv1.User, error) {
 	if request.GetUsername() == "" || request.GetRole() < devopsv1.Role_ROLE_VIEWER || request.GetRole() > devopsv1.Role_ROLE_ADMIN {
