@@ -86,7 +86,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.loading = false
 		d.err = m.err
 		if m.panel < 0 {
-			if r, ok := m.value.(*devopsv1.ListAgentsResponse); ok {
+			if r, ok := m.value.(*devopsv1.ListAgentsResponse); ok && r != nil {
 				d.agents = r.Agents
 				if d.selected >= len(d.agents) {
 					d.selected = 0

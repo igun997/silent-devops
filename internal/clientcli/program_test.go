@@ -34,6 +34,13 @@ func TestDashboardLoadsNavigatesResizesAndShowsErrors(t *testing.T) {
 		t.Fatal(d2.View())
 	}
 }
+func TestDashboardHandlesNilFleetResponse(t *testing.T) {
+	d := NewDashboard(dashboardAPI{}, true)
+	d.Update(resultMsg{panel: -1, value: (*devopsv1.ListAgentsResponse)(nil)})
+	if !strings.Contains(d.View(), "No agents") {
+		t.Fatal(d.View())
+	}
+}
 func TestDashboardQuit(t *testing.T) {
 	d := NewDashboard(dashboardAPI{}, true)
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
