@@ -70,7 +70,7 @@ func Init(o Options) (Result, error) {
 	if _, err := pki.CreateCA(filepath.Join(o.Dir, "agent-ca.key"), []byte(caPass), now); err != nil {
 		return Result{}, err
 	}
-	env := strings.Join([]string{"SILENT_DEVOPS_LISTEN=0.0.0.0:" + port, "SILENT_DEVOPS_DB=" + filepath.Join(o.Dir, "devops.db"), "SILENT_DEVOPS_TLS_CERT=" + filepath.Join(o.Dir, "server.crt"), "SILENT_DEVOPS_TLS_KEY=" + filepath.Join(o.Dir, "server.key"), "SILENT_DEVOPS_CLIENT_CA=" + filepath.Join(o.Dir, "server.crt"), "SILENT_DEVOPS_AGENT_CA=" + filepath.Join(o.Dir, "agent-ca.key"), "SILENT_DEVOPS_AGENT_CA_PASSPHRASE=" + caPass, "SILENT_DEVOPS_TOKEN_KEY=" + tokenKey, "SILENT_DEVOPS_ENROLL_CIDRS=" + o.AgentCIDRs, "SILENT_DEVOPS_AGENT_CIDRS=" + o.AgentCIDRs, "SILENT_DEVOPS_CLIENT_CIDRS=127.0.0.1/32,::1/128"}, "\n") + "\n"
+	env := strings.Join([]string{"SILENT_DEVOPS_LISTEN=0.0.0.0:" + port, "SILENT_DEVOPS_DB=/var/lib/silent-devops/devops.db", "SILENT_DEVOPS_TLS_CERT=" + filepath.Join(o.Dir, "server.crt"), "SILENT_DEVOPS_TLS_KEY=" + filepath.Join(o.Dir, "server.key"), "SILENT_DEVOPS_CLIENT_CA=" + filepath.Join(o.Dir, "server.crt"), "SILENT_DEVOPS_AGENT_CA=" + filepath.Join(o.Dir, "agent-ca.key"), "SILENT_DEVOPS_AGENT_CA_PASSPHRASE=" + caPass, "SILENT_DEVOPS_TOKEN_KEY=" + tokenKey, "SILENT_DEVOPS_ENROLL_CIDRS=" + o.AgentCIDRs, "SILENT_DEVOPS_AGENT_CIDRS=" + o.AgentCIDRs, "SILENT_DEVOPS_CLIENT_CIDRS=127.0.0.1/32,::1/128"}, "\n") + "\n"
 	if err := os.WriteFile(filepath.Join(o.Dir, "validator.env"), []byte(env), 0600); err != nil {
 		return Result{}, err
 	}
