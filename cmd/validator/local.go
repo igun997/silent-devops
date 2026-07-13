@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +49,20 @@ func runLocal(ctx context.Context, args []string, out io.Writer, socket string) 
 		result, err = fleet.CreateEnrollmentToken(ctx, &devopsv1.CreateEnrollmentTokenRequest{TtlSeconds: ttl})
 	case len(args) == 2 && args[0] == "audit" && args[1] == "list":
 		result, err = fleet.ListAudit(ctx, &devopsv1.ListAuditRequest{PageSize: 100})
+	case len(args) == 4 && args[0] == "users" && args[1] == "create":
+		role, roleErr := parseRole(args[3])
+		if roleErr != nil {
+			return roleErr
+		}
+		password, passwordErr := generatedPassword()
+		if passwordErr != nil {
+			return passwordErr
+		}
+		user, createErr := fleet.CreateUser(ctx, &devopsv1.CreateUserRequest{Username: args[2], Password: password, Role: role})
+		if createErr != nil {
+			return createErr
+		}
+		result = map[string]any{"user": user, "password": password}
 	default:
 		return fmt.Errorf("unknown local command")
 	}
@@ -54,4 +70,23 @@ func runLocal(ctx context.Context, args []string, out io.Writer, socket string) 
 		return err
 	}
 	return json.NewEncoder(out).Encode(result)
+}
+func parseRole(value string) (devopsv1.Role, error) {
+	switch value {
+	case "viewer":
+		return devopsv1.Role_ROLE_VIEWER, nil
+	case "operator":
+		return devopsv1.Role_ROLE_OPERATOR, nil
+	case "admin":
+		return devopsv1.Role_ROLE_ADMIN, nil
+	default:
+		return 0, errors.New("role must be viewer, operator, or admin")
+	}
+}
+func generatedPassword() (string, error) {
+	raw := make([]byte, 24)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
 }

@@ -86,9 +86,13 @@ func Validate(args []string) error {
 			return errors.New("invalid arguments")
 		}
 	case "agents":
-		if len(args) != 2 || args[1] != "list" && args[1] != "show" {
-			return errors.New("usage: agents list|show")
+		if len(args) == 2 && args[1] == "list" {
+			return nil
 		}
+		if len(args) == 3 && args[1] == "show" {
+			return nil
+		}
+		return errors.New("usage: agents list | agents show AGENT_ID")
 	case "services":
 		if len(args) < 2 {
 			return errors.New("service action required")
