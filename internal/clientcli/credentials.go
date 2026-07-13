@@ -135,6 +135,16 @@ func Validate(args []string) error {
 		if len(args) < 3 {
 			return errors.New("target and command required")
 		}
+	case "easypanel":
+		if len(args) < 3 {
+			return errors.New("usage: easypanel AGENT_ID detect|projects|token|migrate [args...]")
+		}
+		switch args[2] {
+		case "detect", "projects", "token", "migrate":
+			return nil
+		default:
+			return errors.New("easypanel action must be detect|projects|token|migrate")
+		}
 	case "ssh":
 		return need(3)
 	case "users":

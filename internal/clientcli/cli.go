@@ -13,7 +13,7 @@ type API interface {
 	Call(context.Context, string, []string) (any, error)
 }
 
-var commands = map[string]bool{"login": true, "logout": true, "agents": true, "stats": true, "services": true, "logs": true, "cleanup": true, "reboot": true, "exec": true, "ssh": true, "enroll-token": true, "users": true, "ssh-keys": true, "audit": true, "tui": true}
+var commands = map[string]bool{"login": true, "logout": true, "agents": true, "stats": true, "services": true, "logs": true, "cleanup": true, "reboot": true, "exec": true, "ssh": true, "enroll-token": true, "users": true, "ssh-keys": true, "audit": true, "easypanel": true, "tui": true}
 
 func Known(command string) bool { return commands[command] }
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer, api API, isTTY bool) int {
@@ -58,6 +58,25 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, api API, 
 		fmt.Fprintln(stdout, "logged out")
 		return 0
 	}
+	if command == "exec" || command == "easypanel" {
+		if m, ok := result.(map[string]any); ok {
+			if oe, ok := m["output_error"].(string); ok && oe != "" {
+				fmt.Fprintln(stderr, "job", m["job_id"], "output error:", oe)
+				return 1
+			}
+			if out, ok := m["output"].(string); ok {
+				text := out
+				if !isTTY {
+					text = strings.ReplaceAll(text, "\x1b[", "")
+				}
+				fmt.Fprint(stdout, text)
+				if !strings.HasSuffix(text, "\n") {
+					fmt.Fprintln(stdout)
+				}
+				return 0
+			}
+		}
+	}
 	text := fmt.Sprint(result)
 	if !isTTY {
 		text = strings.ReplaceAll(text, "\x1b[", "")
@@ -82,6 +101,11 @@ func destructive(command string, args []string) bool {
 	if command == "reboot" || command == "exec" {
 		return true
 	}
+	// Only the migrate action mutates a remote panel; read-only easypanel
+	// actions (detect/projects/token) do not require confirmation.
+	if command == "easypanel" && len(args) > 1 && args[1] == "migrate" {
+		return true
+	}
 	if command == "cleanup" && len(args) > 1 && args[1] == "run" {
 		return true
 	}
@@ -100,6 +124,6 @@ func redact(text string, args []string) string {
 }
 
 const Usage = `Usage: client <command> [arguments] [--json] [--yes] [--no-color]
-Commands: login logout agents stats services logs cleanup reboot exec ssh enroll-token users ssh-keys audit tui`
+Commands: login logout agents stats services logs cleanup reboot exec ssh enroll-token users ssh-keys audit easypanel tui`
 
 var ErrNotImplemented = errors.New("client API not configured")

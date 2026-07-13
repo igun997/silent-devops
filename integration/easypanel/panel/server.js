@@ -9,7 +9,10 @@ const DB_PATH = "/etc/easypanel/data/data.mdb";
 const TOKEN = process.env.PANEL_TOKEN || "faketoken";
 const SEED = (process.env.PANEL_SEED || "").trim(); // "project:service,project2"
 
-const db = open({ path: DB_PATH });
+// Match the real panel's on-disk shape: JSON text with a short binary
+// length/version prefix, stored under a binary-encoded store. This exercises
+// the extractor's prefix-skip + JSON-parse path exactly as in production.
+const db = open({ path: DB_PATH, encoding: "binary" });
 
 // In-memory project/service state, seeded from env, persisted lightly to LMDB.
 const projects = new Map(); // name -> Set(serviceName)
@@ -23,17 +26,22 @@ for (const spec of SEED.split(",").map((s) => s.trim()).filter(Boolean)) {
   if (s) set.add(s);
 }
 
-// Seed the admin user + apiToken into LMDB exactly like the real panel record.
-db.putSync("users:admin000000000000000000000", {
+// Seed the admin user + apiToken as prefixed JSON bytes, mirroring the real
+// panel record (outer {json,meta}; inner user object holds admin + apiToken).
+const record = {
   json: {
     admin: true,
     createdAt: new Date().toISOString(),
     email: "admin@example.com",
+    id: "admin000000000000000000000",
     password: "$2b$09$doesnotmatterfakehashvalueforintegrationtesting..",
     apiToken: TOKEN,
   },
   meta: { values: { createdAt: ["Date"] }, v: 1 },
-});
+};
+// Two-byte binary prefix before the JSON payload, like the real store.
+const payload = Buffer.concat([Buffer.from([0x08, 0x01]), Buffer.from(JSON.stringify(record), "utf8")]);
+db.putSync("users:admin000000000000000000000", payload);
 
 function readBody(req) {
   return new Promise((resolve) => {

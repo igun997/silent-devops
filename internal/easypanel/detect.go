@@ -40,13 +40,20 @@ type Detection struct {
 }
 
 // lmdbTokenScript reads the admin apiToken directly from EasyPanel's LMDB using
-// the panel container's own lmdb module. It prints only the token and never the
-// bcrypt password hash also stored on the user record.
+// the panel container's own lmdb module. Panel records are stored as JSON text
+// with a short binary length/version prefix, so the store is opened with binary
+// encoding and each value is decoded by skipping to the first '{' and parsing
+// the remainder. It accepts an already-decoded {json:{...}} shape too, and
+// prints only the token — never the bcrypt password hash on the same record.
 const lmdbTokenScript = `const {open}=require("/app/node_modules/lmdb");` +
-	`const db=open({path:"/etc/easypanel/data/data.mdb",readOnly:true});` +
+	`const db=open({path:"/etc/easypanel/data/data.mdb",readOnly:true,encoding:"binary"});` +
+	`function dec(value){` +
+	`if(value&&typeof value==="object"&&value.json&&typeof value.json==="object")return value.json;` +
+	`try{const b=Buffer.from(value);const i=b.indexOf(0x7b);if(i<0)return null;` +
+	`const o=JSON.parse(b.slice(i).toString("utf8"));return o&&o.json?o.json:o;}catch(e){return null;}}` +
 	`let t="";for(const {key,value} of db.getRange()){` +
-	`const k=String(key);const v=(value&&value.json)?value.json:value;` +
-	`if(k.indexOf("users:")===0&&v&&v.apiToken){if(v.admin){t=v.apiToken;break;}if(!t)t=v.apiToken;}}` +
+	`const k=String(key);if(k.indexOf("users:")!==0)continue;const v=dec(value);` +
+	`if(v&&v.apiToken){if(v.admin){t=v.apiToken;break;}if(!t)t=v.apiToken;}}` +
 	`process.stdout.write(t);`
 
 // localURL returns the panel HTTP base, honoring an EASYPANEL_URL override for

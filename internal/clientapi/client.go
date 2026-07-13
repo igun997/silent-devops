@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	devopsv1 "silent-devops/api/devops/v1"
 )
 
@@ -182,8 +184,16 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 		return nil, errors.New("cleanup run requires preview metadata")
 	case "reboot":
 		return a.fleet.Reboot(ctx, &devopsv1.RebootJobRequest{Context: jobContext(args[0], "reboot", true), Request: &devopsv1.RebootRequest{TargetAgentId: args[0], Confirmation: args[0], ConfirmationExpiresUnixMs: time.Now().Add(time.Minute).UnixMilli()}})
+	case "easypanel":
+		// Sugar over admin exec: run the easypanel-migrate binary on the agent
+		// host. args = [AGENT_ID, action, extra...].
+		if len(args) < 2 {
+			return nil, errors.New("agent ID and action required")
+		}
+		cmd := append([]string{"easypanel-migrate"}, args[1:]...)
+		return a.execCapture(ctx, args[0], "easypanel "+args[1], cmd)
 	case "exec":
-		return a.fleet.Exec(ctx, &devopsv1.ExecJobRequest{Context: jobContext(args[0], "admin exec", true), Request: &devopsv1.ArbitraryCommand{Command: strings.Join(args[1:], " "), CaptureOutput: true}})
+		return a.execCapture(ctx, args[0], "admin exec", args[1:])
 	case "enroll-token":
 		if len(args) == 0 || args[0] == "create" {
 			return a.fleet.CreateEnrollmentToken(ctx, &devopsv1.CreateEnrollmentTokenRequest{TtlSeconds: 300})
@@ -240,12 +250,54 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 		return nil, fmt.Errorf("unsupported command %q", command)
 	}
 }
+
+// execCapture dispatches an admin exec job on the agent and follows its
+// captured stdout, returning a {job_id, output} (or output_error) result shared
+// by the exec and easypanel commands.
+func (a *Adapter) execCapture(ctx context.Context, agentID, reason string, argv []string) (any, error) {
+	job, err := a.fleet.Exec(ctx, &devopsv1.ExecJobRequest{
+		Context: jobContext(agentID, reason, true),
+		Request: &devopsv1.ArbitraryCommand{Command: strings.Join(argv, " "), CaptureOutput: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out, oerr := a.JobOutput(ctx, job.GetId())
+	if oerr != nil {
+		return map[string]any{"job_id": job.GetId(), "output": nil, "output_error": oerr.Error()}, nil
+	}
+	return map[string]any{"job_id": job.GetId(), "output": out}, nil
+}
+
 func (a *Adapter) JobOutput(ctx context.Context, id string) (string, error) {
 	token, err := a.store.Load()
 	if err != nil {
 		return "", errors.New("login required")
 	}
 	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
+	// The server only serves output once the job reaches a terminal state,
+	// returning FailedPrecondition ("job still running") until then. Poll with a
+	// short backoff up to the job deadline so callers get the captured output.
+	deadline := time.Now().Add(40 * time.Second)
+	for {
+		out, err := a.streamJobOutput(ctx, id)
+		if err == nil {
+			return out, nil
+		}
+		if status.Code(err) != codes.FailedPrecondition || time.Now().After(deadline) {
+			return "", err
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+// streamJobOutput performs a single StreamJobOutput attempt and concatenates
+// the captured chunks.
+func (a *Adapter) streamJobOutput(ctx context.Context, id string) (string, error) {
 	stream, err := a.fleet.StreamJobOutput(ctx, &devopsv1.StreamJobOutputRequest{JobId: id})
 	if err != nil {
 		return "", err

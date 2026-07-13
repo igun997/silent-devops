@@ -3,6 +3,7 @@ package clientcli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -26,10 +27,12 @@ type resultMsg struct {
 }
 type tickMsg time.Time
 
-var panels = []string{"Overview", "Metrics", "Services", "Logs", "Users", "SSH Keys", "Audit", "Help"}
+var panels = []string{"Overview", "Metrics", "Services", "Logs", "Users", "SSH Keys", "Audit", "EasyPanel", "Help"}
+
+const easypanelPanel = 7
 
 // scrollPanel reports whether the given panel routes keys to the viewport.
-func scrollPanel(p int) bool { return p == 2 || p == 3 }
+func scrollPanel(p int) bool { return p == 2 || p == 3 || p == easypanelPanel }
 
 type Dashboard struct {
 	API                            API
@@ -124,6 +127,9 @@ func (d *Dashboard) loadPanel() tea.Cmd {
 	}
 	id := d.agents[d.selected].Id
 	p := d.panel
+	if p == easypanelPanel {
+		return d.loadEasypanel(id)
+	}
 	return func() tea.Msg {
 		var c string
 		var a []string
@@ -162,6 +168,43 @@ func (d *Dashboard) loadPanel() tea.Cmd {
 		}
 		return resultMsg{panel: p, value: v, err: e}
 	}
+}
+
+// loadEasypanel runs the read-only easypanel detect + projects actions on the
+// selected agent and renders their captured output in the EasyPanel panel.
+func (d *Dashboard) loadEasypanel(id string) tea.Cmd {
+	return func() tea.Msg {
+		var b strings.Builder
+		for _, action := range []string{"detect", "projects"} {
+			v, e := d.API.Call(context.Background(), "easypanel", []string{id, action})
+			if e != nil {
+				return resultMsg{panel: easypanelPanel, err: e}
+			}
+			b.WriteString("$ easypanel-migrate " + action + "\n")
+			b.WriteString(easypanelOutput(v))
+			b.WriteString("\n")
+		}
+		return resultMsg{panel: easypanelPanel, value: b.String()}
+	}
+}
+
+// easypanelOutput pulls the captured stdout (or error) from an easypanel result
+// map produced by the client adapter.
+func easypanelOutput(v any) string {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return fmt.Sprint(v)
+	}
+	if oe, ok := m["output_error"].(string); ok && oe != "" {
+		return "error: " + oe + "\n"
+	}
+	if out, ok := m["output"].(string); ok {
+		if out == "" {
+			return "(no output)\n"
+		}
+		return out
+	}
+	return fmt.Sprint(v)
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

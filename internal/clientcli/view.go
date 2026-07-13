@@ -123,7 +123,7 @@ func (d *Dashboard) panelView() string {
 		return d.overview(a)
 	case 1:
 		return d.metrics()
-	case 2, 3:
+	case 2, 3, easypanelPanel:
 		head := d.th.heading.Render(strings.ToUpper(panels[d.panel]))
 		pct := d.th.subtle.Render(fmt.Sprintf("%3.0f%%", d.viewport.ScrollPercent()*100))
 		return head + "  " + pct + "\n\n" + d.viewport.View()
@@ -134,7 +134,7 @@ func (d *Dashboard) panelView() string {
 			meta += fmt.Sprintf(" · filter %q", d.filter)
 		}
 		return head + "  " + d.th.subtle.Render(meta) + "\n\n" + d.table.View()
-	case 7:
+	case 8:
 		d.help.ShowAll = true
 		return d.th.heading.Render("KEY BINDINGS") + "\n\n" + d.help.View(d.keys) +
 			"\n\n" + d.th.subtle.Render("Live dashboard refreshes every 15 seconds.")

@@ -114,6 +114,39 @@ func TestTableSearchFiltersRows(t *testing.T) {
 		t.Fatalf("post-clear rows=%d want 2", got)
 	}
 }
+
+// easypanelAPI answers agents + easypanel commands so the EasyPanel panel can
+// be exercised end to end in the TUI.
+type easypanelAPI struct{}
+
+func (easypanelAPI) Call(_ context.Context, command string, args []string) (any, error) {
+	switch command {
+	case "agents":
+		return &devopsv1.ListAgentsResponse{Agents: []*devopsv1.Agent{{Id: "a1", Hostname: "alpha", Online: true}}}, nil
+	case "easypanel":
+		if len(args) >= 2 && args[1] == "detect" {
+			return map[string]any{"job_id": "j1", "output": "easypanel: detected container=easypanel.1.x\n"}, nil
+		}
+		return map[string]any{"job_id": "j2", "output": "tests\n"}, nil
+	}
+	return nil, nil
+}
+
+func TestDashboardEasypanelPanelShowsOutput(t *testing.T) {
+	d := NewDashboard(easypanelAPI{}, true)
+	d.Update(d.loadAgents()())
+	d.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	d.panel = easypanelPanel
+	msg := d.loadEasypanel("a1")()
+	d.Update(msg)
+	view := d.View()
+	for _, want := range []string{"EasyPanel", "detected container=easypanel.1.x", "tests"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("missing %q in view:\n%s", want, view)
+		}
+	}
+}
+
 func TestDashboardQuit(t *testing.T) {
 	d := NewDashboard(dashboardAPI{}, true)
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})

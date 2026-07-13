@@ -70,6 +70,36 @@ easypanel-migrate migrate \
 `--remote-container NAME` extracts the remote token from a locally reachable
 panel container instead of `--remote-token`.
 
+## From the Silent DevOps client
+
+The binary is installed on the agent host and driven remotely through admin
+exec, so it works from the client CLI and TUI without SSH.
+
+### CLI
+
+```sh
+# read-only actions (no confirmation)
+silent-devops-client easypanel AGENT_ID detect
+silent-devops-client easypanel AGENT_ID projects
+silent-devops-client easypanel AGENT_ID token
+
+# migrate mutates a remote panel and requires --yes
+silent-devops-client easypanel AGENT_ID migrate --yes \
+  --local-project staging --local-service flux-be \
+  --remote-url http://REMOTE:3000 --remote-token TOK \
+  --remote-project tests --remote-service flux
+```
+
+The client dispatches an admin-exec job that runs `easypanel-migrate` on the
+agent and streams back the captured stdout (polling until the job reaches a
+terminal state).
+
+### TUI
+
+The dashboard has an **EasyPanel** panel (tab across to it) that runs `detect`
+and `projects` on the selected agent and shows the captured output in a
+scrollable view.
+
 ## Tests
 
 - Unit: `go test ./internal/easypanel/` (client, preflight, detection, token).
