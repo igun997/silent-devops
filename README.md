@@ -2,7 +2,9 @@
 
 Secure fleet operations for Ubuntu and Debian hosts. Agents run on managed machines, open outbound mTLS connections, publish metrics, and execute authorized maintenance jobs. Validator owns identity, CIDR policy, RBAC, audit, and job state. Operators use scriptable client CLI.
 
-<video src="docs/media/silent-devops-architecture.mp4" controls width="100%" title="Silent DevOps architecture"></video>
+[![Watch Silent DevOps architecture animation](docs/media/silent-devops-architecture-preview.png)](docs/media/silent-devops-architecture.mp4)
+
+**[Watch or download architecture animation (MP4)](docs/media/silent-devops-architecture.mp4)**
 
 ## Why Silent DevOps
 
