@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	devopsv1 "silent-devops/api/devops/v1"
 )
 
@@ -34,6 +36,15 @@ func TestDashboardLoadsNavigatesResizesAndShowsErrors(t *testing.T) {
 		t.Fatal(d2.View())
 	}
 }
+func TestDashboardPermissionDeniedPreservesSession(t *testing.T) {
+	d := NewDashboard(nil, true)
+	d.Update(resultMsg{panel: 4, err: status.Error(codes.PermissionDenied, "authentication failed")})
+	view := d.View()
+	if !strings.Contains(view, "Access denied") || !strings.Contains(view, "Admin role required") || strings.Contains(view, "Session expired") {
+		t.Fatalf("view=%q", view)
+	}
+}
+
 func TestDashboardHandlesNilFleetResponse(t *testing.T) {
 	d := NewDashboard(dashboardAPI{}, true)
 	d.Update(resultMsg{panel: -1, value: (*devopsv1.ListAgentsResponse)(nil)})

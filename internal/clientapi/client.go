@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ type Store interface {
 }
 type AuthClient interface {
 	Login(context.Context, *devopsv1.LoginRequest, ...grpc.CallOption) (*devopsv1.LoginResponse, error)
+	RedeemClientInvitation(context.Context, *devopsv1.RedeemClientInvitationRequest, ...grpc.CallOption) (*devopsv1.LoginResponse, error)
 }
 type Adapter struct {
 	conn  *grpc.ClientConn
@@ -32,6 +34,16 @@ type Adapter struct {
 	store Store
 }
 
+func (a *Adapter) Redeem(ctx context.Context, secret, password string) (*devopsv1.LoginResponse, error) {
+	r, err := a.auth.RedeemClientInvitation(ctx, &devopsv1.RedeemClientInvitationRequest{Secret: secret, Password: password})
+	if err != nil {
+		return nil, err
+	}
+	if err = a.store.Save(r.AccessToken); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
 func Dial(address, caPath, serverName string, store Store) (*Adapter, error) {
 	if address == "" || caPath == "" || store == nil {
 		return nil, errors.New("address, CA, and credential store required")
@@ -52,6 +64,67 @@ func Dial(address, caPath, serverName string, store Store) (*Adapter, error) {
 }
 func NewForTest(auth AuthClient, fleet devopsv1.FleetServiceClient, store Store) *Adapter {
 	return &Adapter{auth: auth, fleet: fleet, store: store}
+}
+
+// Pipe relays stdin/stdout over a BridgeSsh gRPC stream for use as an OpenSSH
+// ProxyCommand. The first frame carries the session id; bearer auth rides in
+// the outgoing metadata.
+func (a *Adapter) Pipe(ctx context.Context, sessionID string, in io.Reader, out io.Writer) error {
+	token, err := a.store.Load()
+	if err != nil {
+		return err
+	}
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
+	stream, err := a.fleet.BridgeSsh(ctx)
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&devopsv1.TunnelFrame{SessionId: sessionID}); err != nil {
+		return err
+	}
+	errc := make(chan error, 2)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, rerr := in.Read(buf)
+			if n > 0 {
+				if serr := stream.Send(&devopsv1.TunnelFrame{Data: buf[:n]}); serr != nil {
+					errc <- serr
+					return
+				}
+			}
+			if rerr != nil {
+				_ = stream.Send(&devopsv1.TunnelFrame{Close: true})
+				_ = stream.CloseSend()
+				errc <- nil
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			frame, rerr := stream.Recv()
+			if rerr == io.EOF {
+				errc <- nil
+				return
+			}
+			if rerr != nil {
+				errc <- rerr
+				return
+			}
+			if len(frame.Data) > 0 {
+				if _, werr := out.Write(frame.Data); werr != nil {
+					errc <- werr
+					return
+				}
+			}
+			if frame.Close {
+				errc <- nil
+				return
+			}
+		}
+	}()
+	return <-errc
 }
 func (a *Adapter) Close() error {
 	if a.conn == nil {
@@ -149,10 +222,49 @@ func (a *Adapter) Call(ctx context.Context, command string, args []string) (any,
 	case "audit":
 		return a.fleet.ListAudit(ctx, &devopsv1.ListAuditRequest{PageSize: 100})
 	case "ssh":
-		return nil, errors.New("ssh requires interactive OpenSSH workflow")
+		if len(args) == 2 && args[0] == "status" {
+			return a.fleet.GetSshSession(ctx, &devopsv1.GetSshSessionRequest{SessionId: args[1]})
+		}
+		if len(args) == 2 && args[0] == "close" {
+			return a.fleet.CloseSsh(ctx, &devopsv1.CloseSshRequest{SessionId: args[1], Reason: "client closed"})
+		}
+		if len(args) != 2 {
+			return nil, errors.New("agent ID and public key required")
+		}
+		key, err := os.ReadFile(args[1])
+		if err != nil {
+			return nil, err
+		}
+		return a.fleet.PrepareSsh(ctx, &devopsv1.PrepareSshRequest{AgentId: args[0], PublicKey: key, Reason: "interactive SSH", TtlSeconds: 900})
 	default:
 		return nil, fmt.Errorf("unsupported command %q", command)
 	}
+}
+func (a *Adapter) JobOutput(ctx context.Context, id string) (string, error) {
+	token, err := a.store.Load()
+	if err != nil {
+		return "", errors.New("login required")
+	}
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+token))
+	stream, err := a.fleet.StreamJobOutput(ctx, &devopsv1.StreamJobOutputRequest{JobId: id})
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		out.Write(chunk.Data)
+		if chunk.Final {
+			break
+		}
+	}
+	return out.String(), nil
 }
 func jobContext(agent, reason string, confirmed bool) *devopsv1.JobRequestContext {
 	return &devopsv1.JobRequestContext{AgentId: agent, Reason: reason, TimeoutSeconds: 30, IdempotencyKey: strconv.FormatInt(time.Now().UnixNano(), 36), Confirmed: confirmed}

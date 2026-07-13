@@ -136,7 +136,7 @@ func Validate(args []string) error {
 			return errors.New("target and command required")
 		}
 	case "ssh":
-		return need(2)
+		return need(3)
 	case "users":
 		if len(args) == 1 || len(args) == 2 && args[1] == "list" {
 			return nil

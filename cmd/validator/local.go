@@ -49,6 +49,28 @@ func runLocal(ctx context.Context, args []string, out io.Writer, socket string) 
 		result, err = fleet.CreateEnrollmentToken(ctx, &devopsv1.CreateEnrollmentTokenRequest{TtlSeconds: ttl})
 	case len(args) == 2 && args[0] == "audit" && args[1] == "list":
 		result, err = fleet.ListAudit(ctx, &devopsv1.ListAuditRequest{PageSize: 100})
+	case len(args) == 2 && args[0] == "client-invite" && args[1] == "list":
+		result, err = fleet.ListClientInvitations(ctx, &devopsv1.ListClientInvitationsRequest{PageSize: 100})
+	case len(args) == 3 && args[0] == "client-invite" && args[1] == "revoke":
+		result, err = fleet.RevokeClientInvitation(ctx, &devopsv1.RevokeClientInvitationRequest{Id: args[2]})
+	case len(args) == 7 && args[0] == "client-invite" && args[1] == "create":
+		role, roleErr := parseRole(args[3])
+		if roleErr != nil {
+			return roleErr
+		}
+		ttl, e := strconv.ParseUint(args[6], 10, 32)
+		if e != nil {
+			return e
+		}
+		inv, e := fleet.CreateClientInvitation(ctx, &devopsv1.CreateClientInvitationRequest{Username: args[2], Role: role, ValidatorAddress: args[4], ValidatorPin: args[5], TtlSeconds: uint32(ttl)})
+		if e != nil {
+			return e
+		}
+		code, e := encodeClientInvitation(inv)
+		if e != nil {
+			return e
+		}
+		result = map[string]any{"id": inv.Id, "code": code, "expires_unix_ms": inv.ExpiresUnixMs}
 	case len(args) == 4 && args[0] == "users" && args[1] == "create":
 		role, roleErr := parseRole(args[3])
 		if roleErr != nil {
@@ -82,6 +104,13 @@ func parseRole(value string) (devopsv1.Role, error) {
 	default:
 		return 0, errors.New("role must be viewer, operator, or admin")
 	}
+}
+func encodeClientInvitation(v *devopsv1.ClientInvitation) (string, error) {
+	data, err := json.Marshal(map[string]string{"address": v.ValidatorAddress, "pin": v.ValidatorPin, "secret": v.Secret})
+	if err != nil {
+		return "", err
+	}
+	return "SDC1_" + base64.RawURLEncoding.EncodeToString(data), nil
 }
 func generatedPassword() (string, error) {
 	raw := make([]byte, 24)

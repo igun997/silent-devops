@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -23,7 +24,7 @@ func StreamInterceptor(issuer *Issuer, policies EndpointPolicies, now func() tim
 		if err := policies.AuthorizePeer(stream.Context(), info.FullMethod); err != nil {
 			return status.Error(codes.PermissionDenied, "peer address denied")
 		}
-		if info.FullMethod == "/devops.v1.AgentService/Connect" {
+		if strings.HasPrefix(info.FullMethod, "/devops.v1.AgentService/") {
 			return handler(srv, stream)
 		}
 		authenticated, err := AuthenticateFleet(stream.Context(), issuer, policies, now(), info.FullMethod)

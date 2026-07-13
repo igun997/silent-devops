@@ -19,7 +19,7 @@ func EndpointUnaryInterceptor(issuer *Issuer, policies EndpointPolicies, now fun
 			return nil, status.Error(codes.PermissionDenied, "peer address denied")
 		}
 		switch {
-		case info.FullMethod == "/devops.v1.AuthService/Login", info.FullMethod == "/devops.v1.EnrollmentService/Enroll":
+		case info.FullMethod == "/devops.v1.AuthService/Login", info.FullMethod == "/devops.v1.AuthService/RedeemClientInvitation", info.FullMethod == "/devops.v1.EnrollmentService/Enroll":
 			return handler(ctx, request)
 		case info.FullMethod == "/devops.v1.EnrollmentService/Renew":
 			return handler(ctx, request)

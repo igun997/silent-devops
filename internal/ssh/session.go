@@ -70,6 +70,7 @@ func (m *Manager) Create(ctx context.Context, actor, agent string, key []byte, r
 	session := &devopsv1.SshSession{Id: id, AgentId: agent, State: devopsv1.SshSessionState_SSH_SESSION_STATE_PREPARING, ValidatorLoopbackPort: port, ExpiresUnixMs: expires.UnixMilli()}
 	return session, &devopsv1.PrepareSsh{SessionId: id, PublicKey: key, ExpiresUnixMs: expires.UnixMilli(), LoopbackPort: port, BindingToken: token}, nil
 }
+
 func (m *Manager) allocatePort(ctx context.Context, tx *sql.Tx, now time.Time) (uint32, error) {
 	for port := m.min; port <= m.max; port++ {
 		var count int
@@ -92,7 +93,7 @@ func (m *Manager) Ready(ctx context.Context, id string, port uint32, token, host
 	if !ok || !equal(want, token) {
 		return nil, errors.New("SSH session binding mismatch")
 	}
-	result, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=2 WHERE id=? AND loopback_port=? AND state=1 AND expires_unix_ms>?", id, port, m.now().UnixMilli())
+	result, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=2,host_key=? WHERE id=? AND state=1 AND expires_unix_ms>?", hostKey, id, m.now().UnixMilli())
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +104,33 @@ func (m *Manager) Ready(ctx context.Context, id string, port uint32, token, host
 	delete(m.tokens, id)
 	return m.get(ctx, id, hostKey)
 }
+func (m *Manager) Get(ctx context.Context, id string) (*devopsv1.SshSession, error) {
+	return m.get(ctx, id, nil)
+}
+
+// Bridge verifies the actor owns a READY, unexpired session and returns its
+// agent id. Used to authorize a client BridgeSsh tunnel before relaying.
+func (m *Manager) Bridge(ctx context.Context, id, actor string) (string, error) {
+	if id == "" || actor == "" {
+		return "", errors.New("session and actor required")
+	}
+	var agent, owner string
+	var state int32
+	var expires int64
+	if err := m.db.QueryRowContext(ctx, "SELECT agent_id,actor_id,state,expires_unix_ms FROM ssh_sessions WHERE id=?", id).Scan(&agent, &owner, &state, &expires); err != nil {
+		return "", errors.New("SSH session not found")
+	}
+	if owner != actor {
+		return "", errors.New("SSH session not owned by actor")
+	}
+	if devopsv1.SshSessionState(state) != devopsv1.SshSessionState_SSH_SESSION_STATE_READY {
+		return "", errors.New("SSH session not ready")
+	}
+	if m.now().UnixMilli() >= expires {
+		return "", errors.New("SSH session expired")
+	}
+	return agent, nil
+}
 func (m *Manager) Close(ctx context.Context, id, reason string) (*devopsv1.SshSession, error) {
 	if reason == "" {
 		return nil, errors.New("close reason required")
@@ -110,7 +138,7 @@ func (m *Manager) Close(ctx context.Context, id, reason string) (*devopsv1.SshSe
 	m.mu.Lock()
 	delete(m.tokens, id)
 	m.mu.Unlock()
-	if _, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=3 WHERE id=? AND state IN (1,2)", id); err != nil {
+	if _, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=3,loopback_port=NULL WHERE id=? AND state IN (1,2)", id); err != nil {
 		return nil, err
 	}
 	return m.get(ctx, id, nil)
@@ -119,15 +147,21 @@ func (m *Manager) Reconcile(ctx context.Context, now time.Time) error {
 	m.mu.Lock()
 	m.tokens = make(map[string][]byte)
 	m.mu.Unlock()
-	_, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=4 WHERE state IN (1,2) AND expires_unix_ms<=?", now.UnixMilli())
+	_, err := m.db.ExecContext(ctx, "UPDATE ssh_sessions SET state=4,loopback_port=NULL WHERE state IN (1,2) AND expires_unix_ms<=?", now.UnixMilli())
 	return err
 }
 func (m *Manager) get(ctx context.Context, id string, hostKey []byte) (*devopsv1.SshSession, error) {
 	s := &devopsv1.SshSession{HostKey: hostKey}
 	var state int32
-	if err := m.db.QueryRowContext(ctx, "SELECT id,agent_id,state,loopback_port,expires_unix_ms FROM ssh_sessions WHERE id=?", id).Scan(&s.Id, &s.AgentId, &state, &s.ValidatorLoopbackPort, &s.ExpiresUnixMs); err != nil {
+	var port sql.NullInt64
+	var stored []byte
+	if err := m.db.QueryRowContext(ctx, "SELECT id,agent_id,state,loopback_port,expires_unix_ms,host_key FROM ssh_sessions WHERE id=?", id).Scan(&s.Id, &s.AgentId, &state, &port, &s.ExpiresUnixMs, &stored); err != nil {
 		return nil, err
 	}
+	if len(s.HostKey) == 0 {
+		s.HostKey = stored
+	}
+	s.ValidatorLoopbackPort = uint32(port.Int64)
 	s.State = devopsv1.SshSessionState(state)
 	return s, nil
 }

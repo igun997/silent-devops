@@ -25,6 +25,7 @@ import (
 	serverapi "silent-devops/internal/server"
 	sshmanager "silent-devops/internal/ssh"
 	"silent-devops/internal/store"
+	"silent-devops/internal/tunnel"
 )
 
 func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
@@ -75,7 +76,7 @@ func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
 	authService := auth.NewService(s.DB(), issuer, auth.NewRateLimiter(5, time.Minute), time.Now)
 	serverOptions := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsConfig)), grpc.UnaryInterceptor(auth.EndpointUnaryInterceptor(issuer, cfg.Policies, time.Now)), grpc.StreamInterceptor(auth.StreamInterceptor(issuer, cfg.Policies, time.Now))}
 	server := grpc.NewServer(serverOptions...)
-	devopsv1.RegisterAuthServiceServer(server, serverapi.Auth{Service: authService})
+	devopsv1.RegisterAuthServiceServer(server, serverapi.Auth{Service: authService, DB: s.DB()})
 	tokens := pki.NewEnrollmentManager(s.DB())
 	devopsv1.RegisterEnrollmentServiceServer(server, serverapi.Enrollment{CA: agentCA, Tokens: tokens, Identities: identities, Validity: 24 * time.Hour})
 	agentRegistry := registry.New(1, devopsv1.DefaultLimits(), 45*time.Second)
@@ -83,7 +84,8 @@ func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
 	if err := sshSessions.Reconcile(ctx, time.Now()); err != nil {
 		return err
 	}
-	fleet := serverapi.Fleet{DB: s.DB(), Tokens: tokens, Registry: agentRegistry, SSH: sshSessions}
+	sshRelay := tunnel.NewRelay()
+	fleet := serverapi.Fleet{DB: s.DB(), Tokens: tokens, Registry: agentRegistry, SSH: sshSessions, Relay: sshRelay}
 	devopsv1.RegisterFleetServiceServer(server, fleet)
 	if err := os.MkdirAll(filepath.Dir(cfg.LocalSocket), 0750); err != nil {
 		return err
@@ -117,7 +119,7 @@ func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
 		}
 	}()
 	messageHandler := registry.MessageHandler{DB: s.DB(), Metrics: metrics.NewRepository(s.DB()), SSH: sshSessions}
-	devopsv1.RegisterAgentServiceServer(server, &registry.AgentServer{Registry: agentRegistry, Persistence: persistence, Authorize: identities.AuthorizeConnection, Handle: messageHandler.Handle})
+	devopsv1.RegisterAgentServiceServer(server, &registry.AgentServer{Registry: agentRegistry, Persistence: persistence, Relay: sshRelay, Authorize: identities.AuthorizeConnection, Handle: messageHandler.Handle})
 	stopped := make(chan struct{})
 	go func() {
 		select {

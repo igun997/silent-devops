@@ -93,6 +93,15 @@ func TestRetentionCleanupUnitBacked(t *testing.T) {
 		t.Fatalf("retention failed: %q", out)
 	}
 }
+func TestInteractiveSSHTrafficOverGRPCTunnel(t *testing.T) {
+	id := strings.TrimSpace(compose(t, "exec", "-T", "agent-debian-12", "cat", "/creds/agent-id"))
+	out := compose(t, "exec", "-T", "allowed-client", "integration-helper", "ssh-exec", "validator:8443", id)
+	if !strings.Contains(out, "ssh-exec-ok") || !strings.Contains(out, "silent-devops") {
+		t.Fatal(out)
+	}
+	compose(t, "exec", "-T", "validator", "sh", "-c", "for i in $(seq 1 30); do [ \"$(sqlite3 /state/devops.db \"select count(*) from ssh_sessions where state=3\")\" -gt 0 ] && exit 0; sleep .1; done; exit 1")
+	compose(t, "exec", "-T", "agent-debian-12", "sh", "-c", "! grep -q silent-devops: /shared/agent-authorized-keys")
+}
 func TestCredentialIsolationAndTokenConsumption(t *testing.T) {
 	for _, service := range []string{"agent-ubuntu-2204", "agent-ubuntu-2404", "agent-debian-12"} {
 		compose(t, "exec", "-T", service, "sh", "-c", "test -s /creds/agent.key && test $(stat -c %a /creds/agent.key) = 600")

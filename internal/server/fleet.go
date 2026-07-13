@@ -17,6 +17,7 @@ import (
 	"silent-devops/internal/pki"
 	"silent-devops/internal/registry"
 	sshmanager "silent-devops/internal/ssh"
+	"silent-devops/internal/tunnel"
 )
 
 type Fleet struct {
@@ -25,6 +26,7 @@ type Fleet struct {
 	Tokens   *pki.EnrollmentManager
 	Registry *registry.Registry
 	SSH      *sshmanager.Manager
+	Relay    *tunnel.Relay
 	Now      func() time.Time
 }
 

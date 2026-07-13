@@ -19,7 +19,7 @@ func TestTemporaryAuthorizedKeyInstallRemoveAndReconcile(t *testing.T) {
 	}
 	data, _ := os.ReadFile(path)
 	text := string(data)
-	if !strings.Contains(text, "restrict,port-forwarding") || strings.Contains(text, "user@host") {
+	if !strings.Contains(text, "restrict,pty") || strings.Contains(text, "user@host") {
 		t.Fatalf("key line=%q", text)
 	}
 	if err := k.Remove("session-1"); err != nil {
@@ -37,17 +37,5 @@ func TestTemporaryAuthorizedKeyInstallRemoveAndReconcile(t *testing.T) {
 	data, _ = os.ReadFile(path)
 	if strings.Contains(string(data), "expired") || !strings.Contains(string(data), "live") {
 		t.Fatalf("reconciled=%q", data)
-	}
-}
-func TestReverseTunnelArgvHardened(t *testing.T) {
-	args, err := ssh.ReverseTunnelArgs("validator.example", 22000, "agent", "/keys/tunnel", "known_hosts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(args, " ")
-	for _, want := range []string{"ExitOnForwardFailure=yes", "StrictHostKeyChecking=yes", "PasswordAuthentication=no", "RequestTTY=no", "-R 127.0.0.1:22000:127.0.0.1:22", "-N"} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("missing %q in %q", want, joined)
-		}
 	}
 }

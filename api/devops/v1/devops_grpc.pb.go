@@ -167,7 +167,8 @@ var EnrollmentService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	AgentService_Connect_FullMethodName = "/devops.v1.AgentService/Connect"
+	AgentService_Connect_FullMethodName    = "/devops.v1.AgentService/Connect"
+	AgentService_OpenTunnel_FullMethodName = "/devops.v1.AgentService/OpenTunnel"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -175,6 +176,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentServiceClient interface {
 	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentMessage, ValidatorMessage], error)
+	OpenTunnel(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error)
 }
 
 type agentServiceClient struct {
@@ -198,11 +200,25 @@ func (c *agentServiceClient) Connect(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ConnectClient = grpc.BidiStreamingClient[AgentMessage, ValidatorMessage]
 
+func (c *agentServiceClient) OpenTunnel(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[1], AgentService_OpenTunnel_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[TunnelFrame, TunnelFrame]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_OpenTunnelClient = grpc.BidiStreamingClient[TunnelFrame, TunnelFrame]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
 type AgentServiceServer interface {
 	Connect(grpc.BidiStreamingServer[AgentMessage, ValidatorMessage]) error
+	OpenTunnel(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -215,6 +231,9 @@ type UnimplementedAgentServiceServer struct{}
 
 func (UnimplementedAgentServiceServer) Connect(grpc.BidiStreamingServer[AgentMessage, ValidatorMessage]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedAgentServiceServer) OpenTunnel(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error {
+	return status.Error(codes.Unimplemented, "method OpenTunnel not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -244,6 +263,13 @@ func _AgentService_Connect_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ConnectServer = grpc.BidiStreamingServer[AgentMessage, ValidatorMessage]
 
+func _AgentService_OpenTunnel_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServiceServer).OpenTunnel(&grpc.GenericServerStream[TunnelFrame, TunnelFrame]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_OpenTunnelServer = grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -258,12 +284,19 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 			ClientStreams: true,
 		},
+		{
+			StreamName:    "OpenTunnel",
+			Handler:       _AgentService_OpenTunnel_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
 	},
 	Metadata: "api/devops/v1/devops.proto",
 }
 
 const (
-	AuthService_Login_FullMethodName = "/devops.v1.AuthService/Login"
+	AuthService_Login_FullMethodName                  = "/devops.v1.AuthService/Login"
+	AuthService_RedeemClientInvitation_FullMethodName = "/devops.v1.AuthService/RedeemClientInvitation"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -271,6 +304,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthServiceClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	RedeemClientInvitation(ctx context.Context, in *RedeemClientInvitationRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 }
 
 type authServiceClient struct {
@@ -291,11 +325,22 @@ func (c *authServiceClient) Login(ctx context.Context, in *LoginRequest, opts ..
 	return out, nil
 }
 
+func (c *authServiceClient) RedeemClientInvitation(ctx context.Context, in *RedeemClientInvitationRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AuthService_RedeemClientInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 type AuthServiceServer interface {
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	RedeemClientInvitation(context.Context, *RedeemClientInvitationRequest) (*LoginResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -308,6 +353,9 @@ type UnimplementedAuthServiceServer struct{}
 
 func (UnimplementedAuthServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}
+func (UnimplementedAuthServiceServer) RedeemClientInvitation(context.Context, *RedeemClientInvitationRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RedeemClientInvitation not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -348,6 +396,24 @@ func _AuthService_Login_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_RedeemClientInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RedeemClientInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RedeemClientInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_RedeemClientInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RedeemClientInvitation(ctx, req.(*RedeemClientInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -359,41 +425,50 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Login",
 			Handler:    _AuthService_Login_Handler,
 		},
+		{
+			MethodName: "RedeemClientInvitation",
+			Handler:    _AuthService_RedeemClientInvitation_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/devops/v1/devops.proto",
 }
 
 const (
-	FleetService_ListAgents_FullMethodName            = "/devops.v1.FleetService/ListAgents"
-	FleetService_GetAgent_FullMethodName              = "/devops.v1.FleetService/GetAgent"
-	FleetService_GetMetrics_FullMethodName            = "/devops.v1.FleetService/GetMetrics"
-	FleetService_ListProcesses_FullMethodName         = "/devops.v1.FleetService/ListProcesses"
-	FleetService_ListServices_FullMethodName          = "/devops.v1.FleetService/ListServices"
-	FleetService_GetService_FullMethodName            = "/devops.v1.FleetService/GetService"
-	FleetService_StartService_FullMethodName          = "/devops.v1.FleetService/StartService"
-	FleetService_StopService_FullMethodName           = "/devops.v1.FleetService/StopService"
-	FleetService_RestartService_FullMethodName        = "/devops.v1.FleetService/RestartService"
-	FleetService_ReadLogs_FullMethodName              = "/devops.v1.FleetService/ReadLogs"
-	FleetService_PreviewCleanup_FullMethodName        = "/devops.v1.FleetService/PreviewCleanup"
-	FleetService_RunCleanup_FullMethodName            = "/devops.v1.FleetService/RunCleanup"
-	FleetService_Reboot_FullMethodName                = "/devops.v1.FleetService/Reboot"
-	FleetService_Exec_FullMethodName                  = "/devops.v1.FleetService/Exec"
-	FleetService_CancelJob_FullMethodName             = "/devops.v1.FleetService/CancelJob"
-	FleetService_StreamJobOutput_FullMethodName       = "/devops.v1.FleetService/StreamJobOutput"
-	FleetService_PrepareSsh_FullMethodName            = "/devops.v1.FleetService/PrepareSsh"
-	FleetService_CloseSsh_FullMethodName              = "/devops.v1.FleetService/CloseSsh"
-	FleetService_ListAudit_FullMethodName             = "/devops.v1.FleetService/ListAudit"
-	FleetService_CreateEnrollmentToken_FullMethodName = "/devops.v1.FleetService/CreateEnrollmentToken"
-	FleetService_ListEnrollmentTokens_FullMethodName  = "/devops.v1.FleetService/ListEnrollmentTokens"
-	FleetService_RevokeEnrollmentToken_FullMethodName = "/devops.v1.FleetService/RevokeEnrollmentToken"
-	FleetService_RevokeAgent_FullMethodName           = "/devops.v1.FleetService/RevokeAgent"
-	FleetService_CreateUser_FullMethodName            = "/devops.v1.FleetService/CreateUser"
-	FleetService_ListUsers_FullMethodName             = "/devops.v1.FleetService/ListUsers"
-	FleetService_SetUserRole_FullMethodName           = "/devops.v1.FleetService/SetUserRole"
-	FleetService_AddSshKey_FullMethodName             = "/devops.v1.FleetService/AddSshKey"
-	FleetService_ListSshKeys_FullMethodName           = "/devops.v1.FleetService/ListSshKeys"
-	FleetService_DeleteSshKey_FullMethodName          = "/devops.v1.FleetService/DeleteSshKey"
+	FleetService_ListAgents_FullMethodName             = "/devops.v1.FleetService/ListAgents"
+	FleetService_GetAgent_FullMethodName               = "/devops.v1.FleetService/GetAgent"
+	FleetService_GetMetrics_FullMethodName             = "/devops.v1.FleetService/GetMetrics"
+	FleetService_ListProcesses_FullMethodName          = "/devops.v1.FleetService/ListProcesses"
+	FleetService_ListServices_FullMethodName           = "/devops.v1.FleetService/ListServices"
+	FleetService_GetService_FullMethodName             = "/devops.v1.FleetService/GetService"
+	FleetService_StartService_FullMethodName           = "/devops.v1.FleetService/StartService"
+	FleetService_StopService_FullMethodName            = "/devops.v1.FleetService/StopService"
+	FleetService_RestartService_FullMethodName         = "/devops.v1.FleetService/RestartService"
+	FleetService_ReadLogs_FullMethodName               = "/devops.v1.FleetService/ReadLogs"
+	FleetService_PreviewCleanup_FullMethodName         = "/devops.v1.FleetService/PreviewCleanup"
+	FleetService_RunCleanup_FullMethodName             = "/devops.v1.FleetService/RunCleanup"
+	FleetService_Reboot_FullMethodName                 = "/devops.v1.FleetService/Reboot"
+	FleetService_Exec_FullMethodName                   = "/devops.v1.FleetService/Exec"
+	FleetService_CancelJob_FullMethodName              = "/devops.v1.FleetService/CancelJob"
+	FleetService_StreamJobOutput_FullMethodName        = "/devops.v1.FleetService/StreamJobOutput"
+	FleetService_PrepareSsh_FullMethodName             = "/devops.v1.FleetService/PrepareSsh"
+	FleetService_GetSshSession_FullMethodName          = "/devops.v1.FleetService/GetSshSession"
+	FleetService_CloseSsh_FullMethodName               = "/devops.v1.FleetService/CloseSsh"
+	FleetService_BridgeSsh_FullMethodName              = "/devops.v1.FleetService/BridgeSsh"
+	FleetService_ListAudit_FullMethodName              = "/devops.v1.FleetService/ListAudit"
+	FleetService_CreateEnrollmentToken_FullMethodName  = "/devops.v1.FleetService/CreateEnrollmentToken"
+	FleetService_ListEnrollmentTokens_FullMethodName   = "/devops.v1.FleetService/ListEnrollmentTokens"
+	FleetService_RevokeEnrollmentToken_FullMethodName  = "/devops.v1.FleetService/RevokeEnrollmentToken"
+	FleetService_RevokeAgent_FullMethodName            = "/devops.v1.FleetService/RevokeAgent"
+	FleetService_CreateUser_FullMethodName             = "/devops.v1.FleetService/CreateUser"
+	FleetService_ListUsers_FullMethodName              = "/devops.v1.FleetService/ListUsers"
+	FleetService_SetUserRole_FullMethodName            = "/devops.v1.FleetService/SetUserRole"
+	FleetService_CreateClientInvitation_FullMethodName = "/devops.v1.FleetService/CreateClientInvitation"
+	FleetService_ListClientInvitations_FullMethodName  = "/devops.v1.FleetService/ListClientInvitations"
+	FleetService_RevokeClientInvitation_FullMethodName = "/devops.v1.FleetService/RevokeClientInvitation"
+	FleetService_AddSshKey_FullMethodName              = "/devops.v1.FleetService/AddSshKey"
+	FleetService_ListSshKeys_FullMethodName            = "/devops.v1.FleetService/ListSshKeys"
+	FleetService_DeleteSshKey_FullMethodName           = "/devops.v1.FleetService/DeleteSshKey"
 )
 
 // FleetServiceClient is the client API for FleetService service.
@@ -417,7 +492,9 @@ type FleetServiceClient interface {
 	CancelJob(ctx context.Context, in *CancelJobRequest, opts ...grpc.CallOption) (*Job, error)
 	StreamJobOutput(ctx context.Context, in *StreamJobOutputRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[OutputChunk], error)
 	PrepareSsh(ctx context.Context, in *PrepareSshRequest, opts ...grpc.CallOption) (*SshSession, error)
+	GetSshSession(ctx context.Context, in *GetSshSessionRequest, opts ...grpc.CallOption) (*SshSession, error)
 	CloseSsh(ctx context.Context, in *CloseSshRequest, opts ...grpc.CallOption) (*SshSession, error)
+	BridgeSsh(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error)
 	ListAudit(ctx context.Context, in *ListAuditRequest, opts ...grpc.CallOption) (*ListAuditResponse, error)
 	CreateEnrollmentToken(ctx context.Context, in *CreateEnrollmentTokenRequest, opts ...grpc.CallOption) (*EnrollmentToken, error)
 	ListEnrollmentTokens(ctx context.Context, in *ListEnrollmentTokensRequest, opts ...grpc.CallOption) (*ListEnrollmentTokensResponse, error)
@@ -426,6 +503,9 @@ type FleetServiceClient interface {
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error)
 	ListUsers(ctx context.Context, in *ListUsersRequest, opts ...grpc.CallOption) (*ListUsersResponse, error)
 	SetUserRole(ctx context.Context, in *SetUserRoleRequest, opts ...grpc.CallOption) (*User, error)
+	CreateClientInvitation(ctx context.Context, in *CreateClientInvitationRequest, opts ...grpc.CallOption) (*ClientInvitation, error)
+	ListClientInvitations(ctx context.Context, in *ListClientInvitationsRequest, opts ...grpc.CallOption) (*ListClientInvitationsResponse, error)
+	RevokeClientInvitation(ctx context.Context, in *RevokeClientInvitationRequest, opts ...grpc.CallOption) (*ClientInvitation, error)
 	AddSshKey(ctx context.Context, in *AddSshKeyRequest, opts ...grpc.CallOption) (*SshKey, error)
 	ListSshKeys(ctx context.Context, in *ListSshKeysRequest, opts ...grpc.CallOption) (*ListSshKeysResponse, error)
 	DeleteSshKey(ctx context.Context, in *DeleteSshKeyRequest, opts ...grpc.CallOption) (*DeleteSshKeyResponse, error)
@@ -618,6 +698,16 @@ func (c *fleetServiceClient) PrepareSsh(ctx context.Context, in *PrepareSshReque
 	return out, nil
 }
 
+func (c *fleetServiceClient) GetSshSession(ctx context.Context, in *GetSshSessionRequest, opts ...grpc.CallOption) (*SshSession, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SshSession)
+	err := c.cc.Invoke(ctx, FleetService_GetSshSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fleetServiceClient) CloseSsh(ctx context.Context, in *CloseSshRequest, opts ...grpc.CallOption) (*SshSession, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SshSession)
@@ -627,6 +717,19 @@ func (c *fleetServiceClient) CloseSsh(ctx context.Context, in *CloseSshRequest, 
 	}
 	return out, nil
 }
+
+func (c *fleetServiceClient) BridgeSsh(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[TunnelFrame, TunnelFrame], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &FleetService_ServiceDesc.Streams[1], FleetService_BridgeSsh_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[TunnelFrame, TunnelFrame]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_BridgeSshClient = grpc.BidiStreamingClient[TunnelFrame, TunnelFrame]
 
 func (c *fleetServiceClient) ListAudit(ctx context.Context, in *ListAuditRequest, opts ...grpc.CallOption) (*ListAuditResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -708,6 +811,36 @@ func (c *fleetServiceClient) SetUserRole(ctx context.Context, in *SetUserRoleReq
 	return out, nil
 }
 
+func (c *fleetServiceClient) CreateClientInvitation(ctx context.Context, in *CreateClientInvitationRequest, opts ...grpc.CallOption) (*ClientInvitation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClientInvitation)
+	err := c.cc.Invoke(ctx, FleetService_CreateClientInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) ListClientInvitations(ctx context.Context, in *ListClientInvitationsRequest, opts ...grpc.CallOption) (*ListClientInvitationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListClientInvitationsResponse)
+	err := c.cc.Invoke(ctx, FleetService_ListClientInvitations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *fleetServiceClient) RevokeClientInvitation(ctx context.Context, in *RevokeClientInvitationRequest, opts ...grpc.CallOption) (*ClientInvitation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClientInvitation)
+	err := c.cc.Invoke(ctx, FleetService_RevokeClientInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *fleetServiceClient) AddSshKey(ctx context.Context, in *AddSshKeyRequest, opts ...grpc.CallOption) (*SshKey, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SshKey)
@@ -759,7 +892,9 @@ type FleetServiceServer interface {
 	CancelJob(context.Context, *CancelJobRequest) (*Job, error)
 	StreamJobOutput(*StreamJobOutputRequest, grpc.ServerStreamingServer[OutputChunk]) error
 	PrepareSsh(context.Context, *PrepareSshRequest) (*SshSession, error)
+	GetSshSession(context.Context, *GetSshSessionRequest) (*SshSession, error)
 	CloseSsh(context.Context, *CloseSshRequest) (*SshSession, error)
+	BridgeSsh(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error
 	ListAudit(context.Context, *ListAuditRequest) (*ListAuditResponse, error)
 	CreateEnrollmentToken(context.Context, *CreateEnrollmentTokenRequest) (*EnrollmentToken, error)
 	ListEnrollmentTokens(context.Context, *ListEnrollmentTokensRequest) (*ListEnrollmentTokensResponse, error)
@@ -768,6 +903,9 @@ type FleetServiceServer interface {
 	CreateUser(context.Context, *CreateUserRequest) (*User, error)
 	ListUsers(context.Context, *ListUsersRequest) (*ListUsersResponse, error)
 	SetUserRole(context.Context, *SetUserRoleRequest) (*User, error)
+	CreateClientInvitation(context.Context, *CreateClientInvitationRequest) (*ClientInvitation, error)
+	ListClientInvitations(context.Context, *ListClientInvitationsRequest) (*ListClientInvitationsResponse, error)
+	RevokeClientInvitation(context.Context, *RevokeClientInvitationRequest) (*ClientInvitation, error)
 	AddSshKey(context.Context, *AddSshKeyRequest) (*SshKey, error)
 	ListSshKeys(context.Context, *ListSshKeysRequest) (*ListSshKeysResponse, error)
 	DeleteSshKey(context.Context, *DeleteSshKeyRequest) (*DeleteSshKeyResponse, error)
@@ -832,8 +970,14 @@ func (UnimplementedFleetServiceServer) StreamJobOutput(*StreamJobOutputRequest, 
 func (UnimplementedFleetServiceServer) PrepareSsh(context.Context, *PrepareSshRequest) (*SshSession, error) {
 	return nil, status.Error(codes.Unimplemented, "method PrepareSsh not implemented")
 }
+func (UnimplementedFleetServiceServer) GetSshSession(context.Context, *GetSshSessionRequest) (*SshSession, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSshSession not implemented")
+}
 func (UnimplementedFleetServiceServer) CloseSsh(context.Context, *CloseSshRequest) (*SshSession, error) {
 	return nil, status.Error(codes.Unimplemented, "method CloseSsh not implemented")
+}
+func (UnimplementedFleetServiceServer) BridgeSsh(grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]) error {
+	return status.Error(codes.Unimplemented, "method BridgeSsh not implemented")
 }
 func (UnimplementedFleetServiceServer) ListAudit(context.Context, *ListAuditRequest) (*ListAuditResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAudit not implemented")
@@ -858,6 +1002,15 @@ func (UnimplementedFleetServiceServer) ListUsers(context.Context, *ListUsersRequ
 }
 func (UnimplementedFleetServiceServer) SetUserRole(context.Context, *SetUserRoleRequest) (*User, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetUserRole not implemented")
+}
+func (UnimplementedFleetServiceServer) CreateClientInvitation(context.Context, *CreateClientInvitationRequest) (*ClientInvitation, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateClientInvitation not implemented")
+}
+func (UnimplementedFleetServiceServer) ListClientInvitations(context.Context, *ListClientInvitationsRequest) (*ListClientInvitationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListClientInvitations not implemented")
+}
+func (UnimplementedFleetServiceServer) RevokeClientInvitation(context.Context, *RevokeClientInvitationRequest) (*ClientInvitation, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeClientInvitation not implemented")
 }
 func (UnimplementedFleetServiceServer) AddSshKey(context.Context, *AddSshKeyRequest) (*SshKey, error) {
 	return nil, status.Error(codes.Unimplemented, "method AddSshKey not implemented")
@@ -1188,6 +1341,24 @@ func _FleetService_PrepareSsh_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetService_GetSshSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSshSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).GetSshSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_GetSshSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).GetSshSession(ctx, req.(*GetSshSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FleetService_CloseSsh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CloseSshRequest)
 	if err := dec(in); err != nil {
@@ -1205,6 +1376,13 @@ func _FleetService_CloseSsh_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	return interceptor(ctx, in, info, handler)
 }
+
+func _FleetService_BridgeSsh_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(FleetServiceServer).BridgeSsh(&grpc.GenericServerStream[TunnelFrame, TunnelFrame]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type FleetService_BridgeSshServer = grpc.BidiStreamingServer[TunnelFrame, TunnelFrame]
 
 func _FleetService_ListAudit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAuditRequest)
@@ -1350,6 +1528,60 @@ func _FleetService_SetUserRole_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FleetService_CreateClientInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateClientInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).CreateClientInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_CreateClientInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).CreateClientInvitation(ctx, req.(*CreateClientInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_ListClientInvitations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListClientInvitationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).ListClientInvitations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_ListClientInvitations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).ListClientInvitations(ctx, req.(*ListClientInvitationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FleetService_RevokeClientInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeClientInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FleetServiceServer).RevokeClientInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FleetService_RevokeClientInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FleetServiceServer).RevokeClientInvitation(ctx, req.(*RevokeClientInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _FleetService_AddSshKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddSshKeyRequest)
 	if err := dec(in); err != nil {
@@ -1476,6 +1708,10 @@ var FleetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FleetService_PrepareSsh_Handler,
 		},
 		{
+			MethodName: "GetSshSession",
+			Handler:    _FleetService_GetSshSession_Handler,
+		},
+		{
 			MethodName: "CloseSsh",
 			Handler:    _FleetService_CloseSsh_Handler,
 		},
@@ -1512,6 +1748,18 @@ var FleetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FleetService_SetUserRole_Handler,
 		},
 		{
+			MethodName: "CreateClientInvitation",
+			Handler:    _FleetService_CreateClientInvitation_Handler,
+		},
+		{
+			MethodName: "ListClientInvitations",
+			Handler:    _FleetService_ListClientInvitations_Handler,
+		},
+		{
+			MethodName: "RevokeClientInvitation",
+			Handler:    _FleetService_RevokeClientInvitation_Handler,
+		},
+		{
 			MethodName: "AddSshKey",
 			Handler:    _FleetService_AddSshKey_Handler,
 		},
@@ -1529,6 +1777,12 @@ var FleetService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "StreamJobOutput",
 			Handler:       _FleetService_StreamJobOutput_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "BridgeSsh",
+			Handler:       _FleetService_BridgeSsh_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "api/devops/v1/devops.proto",
