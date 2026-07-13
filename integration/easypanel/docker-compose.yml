@@ -1,0 +1,37 @@
+# Isolated E2E harness for easypanel-migrate. Two fake EasyPanel panels named
+# like real panel containers (easypanel.1.*) so host-side Detect finds them.
+# The runner has the docker CLI + socket to exercise docker-exec LMDB token
+# extraction, and the easypanel-migrate binary to drive the migration.
+services:
+  easypanel-source:
+    build: {context: ./panel}
+    container_name: easypanel.1.source
+    environment:
+      PANEL_TOKEN: source-api-token-000000000000000000000000000000
+      PANEL_SEED: "staging:flux-be"
+    networks: [ep_net]
+    healthcheck: {test: [CMD-SHELL, "wget -qO- --post-data='{\"json\":{}}' --header=content-type:application/json http://127.0.0.1:3000/api/trpc/projects.listProjects >/dev/null 2>&1"], interval: 2s, timeout: 2s, retries: 40}
+
+  easypanel-target:
+    build: {context: ./panel}
+    container_name: easypanel.1.target
+    environment:
+      PANEL_TOKEN: target-api-token-000000000000000000000000000000
+      PANEL_SEED: "tests"
+    networks: [ep_net]
+    healthcheck: {test: [CMD-SHELL, "wget -qO- --post-data='{\"json\":{}}' --header=content-type:application/json http://127.0.0.1:3000/api/trpc/projects.listProjects >/dev/null 2>&1"], interval: 2s, timeout: 2s, retries: 40}
+
+  runner:
+    build: {context: ../.., dockerfile: integration/easypanel/runner/Dockerfile}
+    depends_on:
+      easypanel-source: {condition: service_healthy}
+      easypanel-target: {condition: service_healthy}
+    networks: [ep_net]
+    environment:
+      EASYPANEL_CONTAINER: easypanel.1.source
+      EASYPANEL_URL: http://easypanel-source:3000
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    command: ["sleep", "infinity"]
+
+networks:
+  ep_net: {}

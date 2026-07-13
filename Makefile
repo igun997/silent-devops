@@ -9,7 +9,7 @@ PROTOC_GEN_GO_VERSION := v1.36.11
 PROTOC_GEN_GO_GRPC_VERSION := v1.6.1
 TOOLS_DIR := $(CURDIR)/.tools
 
-.PHONY: build build-linux fmt fmt-check vet test test-race test-e2e tools generate generate-check clean
+.PHONY: build build-linux fmt fmt-check vet test test-race test-e2e test-e2e-easypanel tools generate generate-check clean
 build:
 	@mkdir -p $(BIN_DIR)
 	@for command in $(COMMANDS); do $(GO) build -ldflags '$(LDFLAGS)' -o $(BIN_DIR)/$$command ./cmd/$$command; done
@@ -28,6 +28,8 @@ test-race:
 	$(GO) test -race ./...
 test-e2e:
 	./integration/run.sh
+test-e2e-easypanel:
+	./integration/easypanel/run.sh
 tools:
 	@mkdir -p $(TOOLS_DIR)
 	@test -x $(TOOLS_DIR)/protoc-gen-go || GOBIN=$(TOOLS_DIR) $(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)

@@ -4,3 +4,4 @@ bin/
 coverage.out
 .remotion/
 integration-helper
+/easypanel-migrate
