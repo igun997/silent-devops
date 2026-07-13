@@ -1,6 +1,6 @@
 # Silent DevOps
 
-Secure fleet operations for Ubuntu and Debian hosts. Agents run on managed machines, open outbound mTLS connections, publish metrics, and execute authorized maintenance jobs. Validator owns identity, CIDR policy, RBAC, audit, and job state. Operators use scriptable client CLI.
+Secure fleet operations for Ubuntu and Debian hosts. Agents run on managed machines, open outbound mTLS connections, publish metrics, and execute authorized maintenance jobs. Validator owns identity, CIDR policy, RBAC, audit, and job state. Operators use scriptable client CLI or keyboard-driven terminal dashboard.
 
 [![Watch Silent DevOps architecture animation](docs/media/silent-devops-architecture-preview.png)](docs/media/silent-devops-architecture.mp4)
 
@@ -50,6 +50,8 @@ make test-race
 make build-linux
 make test-e2e
 ```
+
+Run `silent-devops-client` without arguments for interactive fleet dashboard. Use ↑/↓ to select, `r` to refresh, `?` for help, and `q` to quit. `silent-devops-client tui --no-color` keeps hierarchy without color. Scriptable commands and `--json` remain available.
 
 Artifacts:
 

@@ -78,13 +78,21 @@ func Validate(args []string) error {
 	switch args[0] {
 	case "login":
 		return need(3)
-	case "logout", "stats", "enroll-token", "audit", "tui":
-		if args[0] == "tui" {
-			return need(1)
+	case "logout", "audit", "tui":
+		return need(1)
+	case "stats":
+		return need(2)
+	case "enroll-token":
+		if len(args) == 1 {
+			return nil
 		}
-		if len(args) < 1 {
-			return errors.New("invalid arguments")
+		if len(args) == 2 && (args[1] == "create" || args[1] == "list") {
+			return nil
 		}
+		if len(args) == 3 && args[1] == "revoke" {
+			return nil
+		}
+		return errors.New("usage: enroll-token create|list|revoke ID")
 	case "agents":
 		if len(args) == 2 && args[1] == "list" {
 			return nil
@@ -129,10 +137,16 @@ func Validate(args []string) error {
 		}
 	case "ssh":
 		return need(2)
-	case "users", "ssh-keys":
-		if len(args) < 2 {
-			return errors.New("action required")
+	case "users":
+		if len(args) == 1 || len(args) == 2 && args[1] == "list" {
+			return nil
 		}
+		return errors.New("usage: users list")
+	case "ssh-keys":
+		if len(args) == 1 || len(args) >= 2 {
+			return nil
+		}
+		return errors.New("invalid ssh-keys action")
 	}
 	return nil
 }

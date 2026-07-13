@@ -2,6 +2,7 @@
 set -eu
 case "${ROLE:-}" in
   validator)
+    getent group silent-devops-admin >/dev/null 2>&1 || groupadd --system silent-devops-admin
     mkdir -p /state /shared
     if [ ! -s /shared/server.crt ]; then integration-helper init /shared; fi
     exec validator
