@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -75,7 +76,11 @@ func (s Fleet) CreateEnrollmentToken(ctx context.Context, request *devopsv1.Crea
 	if s.Now != nil {
 		now = s.Now
 	}
-	token, err := s.Tokens.CreateToken(ctx, claims.Subject, now(), ttl)
+	creator := claims.Subject
+	if strings.HasPrefix(creator, "local:uid:") {
+		creator = ""
+	}
+	token, err := s.Tokens.CreateToken(ctx, creator, now(), ttl)
 	if err != nil {
 		return nil, status.Error(codes.Unavailable, "token creation failed")
 	}
