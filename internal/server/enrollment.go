@@ -51,11 +51,8 @@ func (s Enrollment) Enroll(ctx context.Context, request *devopsv1.EnrollRequest)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid CSR")
 	}
-	if err := s.Identities.Register(ctx, agentID, serial, now().Add(validity)); err != nil {
+	if err := s.Identities.RegisterWithMetadata(ctx, agentID, serial, request.GetHostname(), now().Add(validity), now()); err != nil {
 		return nil, status.Error(codes.AlreadyExists, "agent identity exists")
-	}
-	if err := s.Identities.SetMetadata(ctx, agentID, request.GetHostname()); err != nil {
-		return nil, status.Error(codes.Unavailable, "identity metadata unavailable")
 	}
 	return &devopsv1.EnrollResponse{AgentId: agentID, CertificatePem: certificate, CaCertificatePem: s.CA.CertificatePEM(), ExpiresUnixMs: now().Add(validity).UnixMilli()}, nil
 }

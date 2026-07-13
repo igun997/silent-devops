@@ -8,5 +8,7 @@ import (
 )
 
 func Dial(ctx context.Context, path string) (*grpc.ClientConn, error) {
-	return grpc.NewClient("passthrough:///unix", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return net.Dial("unix", path) }))
+	return grpc.NewClient("passthrough:///unix", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+		return new(net.Dialer).DialContext(ctx, "unix", path)
+	}))
 }

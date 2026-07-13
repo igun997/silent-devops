@@ -15,15 +15,18 @@ import (
 type IdentityRegistry struct{ db *sql.DB }
 
 func NewIdentityRegistry(db *sql.DB) *IdentityRegistry { return &IdentityRegistry{db: db} }
-func (r *IdentityRegistry) SetMetadata(ctx context.Context, id, hostname string) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE agents SET hostname=? WHERE id=?", hostname, id)
-	return err
-}
 func (r *IdentityRegistry) Register(ctx context.Context, id, serial string, expires time.Time) error {
 	if id == "" || serial == "" {
 		return errors.New("agent identity and serial required")
 	}
 	_, err := r.db.ExecContext(ctx, "INSERT INTO agents(id,certificate_serial,certificate_expires_unix_ms,created_unix_ms) VALUES(?,?,?,?)", id, serial, expires.UnixMilli(), time.Now().UnixMilli())
+	return err
+}
+func (r *IdentityRegistry) RegisterWithMetadata(ctx context.Context, id, serial, hostname string, expires, created time.Time) error {
+	if id == "" || serial == "" {
+		return errors.New("agent identity and serial required")
+	}
+	_, err := r.db.ExecContext(ctx, "INSERT INTO agents(id,certificate_serial,certificate_expires_unix_ms,hostname,created_unix_ms) VALUES(?,?,?,?,?)", id, serial, expires.UnixMilli(), hostname, created.UnixMilli())
 	return err
 }
 func (r *IdentityRegistry) AuthorizeRenewal(ctx context.Context, id string, now time.Time) error {

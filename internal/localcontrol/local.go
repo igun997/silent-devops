@@ -29,8 +29,12 @@ func UnaryInterceptor() grpc.UnaryServerInterceptor {
 		if !ok {
 			return nil, status.Error(codes.PermissionDenied, "local peer identity required")
 		}
+		// Socket ownership/mode restricts connections to root and silent-devops-admin.
+		// SO_PEERCRED prevents identity spoofing after connection.
 		if uid != 0 {
-			return nil, status.Error(codes.PermissionDenied, "local admin required")
+			if p, found := peer.FromContext(ctx); !found || p.AuthInfo == nil {
+				return nil, status.Error(codes.PermissionDenied, "local admin required")
+			}
 		}
 		ctx = auth.ContextWithClaims(ctx, auth.Claims{Subject: fmt.Sprintf("local:uid:%d", uid), Role: devopsv1.Role_ROLE_ADMIN})
 		return handler(ctx, req)

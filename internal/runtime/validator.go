@@ -6,9 +6,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -91,13 +94,28 @@ func RunValidator(ctx context.Context, cfg ValidatorConfig) error {
 		return err
 	}
 	defer localListener.Close()
+	group, err := user.LookupGroup("silent-devops-admin")
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+	if err := os.Chown(cfg.LocalSocket, -1, gid); err != nil {
+		return err
+	}
 	if err := os.Chmod(cfg.LocalSocket, 0660); err != nil {
 		return err
 	}
 	localServer := grpc.NewServer(grpc.Creds(localcontrol.Credentials{}), grpc.UnaryInterceptor(localcontrol.UnaryInterceptor()))
 	devopsv1.RegisterFleetServiceServer(localServer, fleet)
 	go func() { <-ctx.Done(); localServer.GracefulStop() }()
-	go func() { _ = localServer.Serve(localListener) }()
+	go func() {
+		if err := localServer.Serve(localListener); err != nil && err != grpc.ErrServerStopped {
+			log.Printf("local control server stopped: %v", err)
+		}
+	}()
 	messageHandler := registry.MessageHandler{DB: s.DB(), Metrics: metrics.NewRepository(s.DB()), SSH: sshSessions}
 	devopsv1.RegisterAgentServiceServer(server, &registry.AgentServer{Registry: agentRegistry, Persistence: persistence, Authorize: identities.AuthorizeConnection, Handle: messageHandler.Handle})
 	stopped := make(chan struct{})

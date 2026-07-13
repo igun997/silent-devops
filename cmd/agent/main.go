@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"silent-devops/internal/agentjoin"
 	"silent-devops/internal/app"
@@ -50,10 +51,16 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stdout, "agent joined; credentials stored in", options.CredentialDir)
 		if !options.NoStart {
-			_ = exec.Command("systemctl", "enable", "--now", "silent-devops-agent").Run()
+			startCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			err = exec.CommandContext(startCtx, "systemctl", "enable", "--now", "silent-devops-agent").Run()
+			cancel()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "credentials stored, but service start failed:", err)
+				os.Exit(1)
+			}
 		}
+		fmt.Fprintln(os.Stdout, "agent joined; credentials stored in", options.CredentialDir)
 		return
 	}
 	os.Exit(app.Run(context.Background(), "agent", os.Args[1:], os.Stdout, os.Stderr, func(context.Context) error {
