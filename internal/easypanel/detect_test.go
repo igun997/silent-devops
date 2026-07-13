@@ -109,3 +109,37 @@ func TestDetectAndTokenAbsentErrors(t *testing.T) {
 		t.Fatal("expected not-detected error")
 	}
 }
+
+func TestDetectPopulatesPublicURL(t *testing.T) {
+	r := &scriptRunner{responses: map[string]string{
+		"docker ps":         "easypanel.1.abc",
+		"package.json":      "2.32.2",
+		"customPanelDomain": "https://panel.example.com", // lmdbSettingsScript
+	}}
+	det, err := Detect(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if det.PublicURL != "https://panel.example.com" {
+		t.Fatalf("PublicURL=%q, want https://panel.example.com", det.PublicURL)
+	}
+	if det.Version != "2.32.2" {
+		t.Fatalf("Version=%q", det.Version)
+	}
+}
+
+func TestPanelPublicURLBestEffortEmpty(t *testing.T) {
+	// Runner errors on the node exec -> PanelPublicURL returns "", nil is not
+	// guaranteed, but Detect swallows the error and leaves PublicURL empty.
+	r := &scriptRunner{
+		responses: map[string]string{"docker ps": "easypanel.1.abc"},
+		errs:      map[string]error{"customPanelDomain": errors.New("boom"), "package.json": errors.New("boom")},
+	}
+	det, err := Detect(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if det.PublicURL != "" {
+		t.Fatalf("PublicURL should be empty on exec failure, got %q", det.PublicURL)
+	}
+}

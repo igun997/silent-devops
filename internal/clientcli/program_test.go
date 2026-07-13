@@ -203,6 +203,7 @@ func TestMigrateFormDispatchesCommand(t *testing.T) {
 		"--local-project staging", "--local-service flux-be",
 		"--remote-project tests", "--remote-service flux",
 		"--create-remote-project",
+		"--timeout 30", // default migrate timeout is configurable in the form
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("args missing %q: %q", want, joined)

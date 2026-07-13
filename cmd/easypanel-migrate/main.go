@@ -86,7 +86,16 @@ func cmdDetect(ctx context.Context) error {
 		fmt.Println("easypanel: not detected")
 		os.Exit(3)
 	}
-	fmt.Printf("easypanel: detected container=%s url=%s\n", det.Container, det.BaseURL)
+	version := det.Version
+	if version == "" {
+		version = "unknown"
+	}
+	publicURL := det.PublicURL
+	if publicURL == "" {
+		publicURL = "unknown"
+	}
+	fmt.Printf("easypanel: detected container=%s url=%s version=%s public_url=%s\n",
+		det.Container, det.BaseURL, version, publicURL)
 	return nil
 }
 

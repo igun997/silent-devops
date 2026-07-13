@@ -24,13 +24,23 @@ func newFakePanel(token string) *fakePanel {
 func (f *fakePanel) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/trpc/projects.listProjects", func(w http.ResponseWriter, r *http.Request) {
+		// Queries must be GET; a POST would 405 on real panels.
+		if r.Method != http.MethodGet {
+			writeJSON(w, 405, map[string]any{"message": "Method Not Allowed"})
+			return
+		}
 		out := []Project{}
 		for name := range f.projects {
 			out = append(out, Project{Name: name})
 		}
-		writeJSON(w, 200, map[string]any{"json": out})
+		// Respond with the tRPC v10 wrapper to exercise unwrapPayload.
+		writeJSON(w, 200, map[string]any{"result": map[string]any{"data": map[string]any{"json": out}}})
 	})
 	mux.HandleFunc("/api/trpc/projects.inspectProject", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, 405, map[string]any{"message": "Method Not Allowed"})
+			return
+		}
 		name := inputString(r, "projectName")
 		svcs, ok := f.projects[name]
 		if !ok {
@@ -58,12 +68,18 @@ func (f *fakePanel) handler() http.Handler {
 	return mux
 }
 
+// inputString reads a tRPC input field from either the ?input= query param
+// (GET queries) or the request body (POST mutations), mirroring the real panel.
 func inputString(r *http.Request, key string) string {
 	var env struct {
 		JSON map[string]any `json:"json"`
 	}
-	body, _ := io.ReadAll(r.Body)
-	_ = json.Unmarshal(body, &env)
+	if raw := r.URL.Query().Get("input"); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &env)
+	} else {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &env)
+	}
 	if v, ok := env.JSON[key].(string); ok {
 		return v
 	}
@@ -204,5 +220,89 @@ func TestPreflightServiceCollision(t *testing.T) {
 	if _, err := Preflight(context.Background(), New(ssrv.URL, "s"), New(dsrv.URL, "d"), in,
 		PreflightOptions{OverwriteRemoteService: true}); err != nil {
 		t.Fatalf("overwrite should pass: %v", err)
+	}
+}
+
+// TestListProjectsUsesGETAndV10Envelope locks in that queries are sent as GET
+// (POST would 405 on real panels) and that the tRPC v10 response wrapper
+// {"result":{"data":{"json":...}}} is decoded.
+func TestListProjectsUsesGETAndV10Envelope(t *testing.T) {
+	f := newFakePanel("tok")
+	f.projects["cds"] = []Service{{Name: "site", ProjectName: "cds"}}
+	f.projects["ai"] = []Service{}
+	srv := httptest.NewServer(f.handler())
+	defer srv.Close()
+	got, err := New(srv.URL, "tok").ListProjects(context.Background())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	names := map[string]bool{}
+	for _, p := range got {
+		names[p.Name] = true
+	}
+	if !names["cds"] || !names["ai"] || len(got) != 2 {
+		t.Fatalf("projects=%v", got)
+	}
+}
+
+// TestListProjectsFallsBackToPOSTOn405 covers panel builds that reject GET
+// queries with 405 and require POST; the client must negotiate the method.
+func TestListProjectsFallsBackToPOSTOn405(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/trpc/projects.listProjects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSON(w, 405, map[string]any{"json": map[string]any{
+				"code": "METHOD_NOT_SUPPORTED", "status": 405, "message": "Method Not Supported"}})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"json": []Project{{Name: "only-post"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := New(srv.URL, "tok")
+	got, err := c.ListProjects(context.Background())
+	if err != nil || len(got) != 1 || got[0].Name != "only-post" {
+		t.Fatalf("post-fallback failed: got=%v err=%v", got, err)
+	}
+	// Second call should reuse the negotiated POST method and still succeed.
+	if _, err := c.ListProjects(context.Background()); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+}
+
+func TestPreferPOSTQueryByVersion(t *testing.T) {
+	cases := map[string]bool{
+		"2.30.1": false, "2.31.9": false, "2.32.0": true, "2.32.2": true,
+		"3.0.0": true, "1.99.0": false, "v2.32.1": true, "": false, "garbage": false,
+	}
+	for v, want := range cases {
+		if got := preferPOSTQuery(v); got != want {
+			t.Errorf("preferPOSTQuery(%q)=%v want %v", v, got, want)
+		}
+	}
+}
+
+// TestNewForVersionPicksPOSTFirst verifies a 2.32.x panel is queried with POST
+// on the first attempt (no GET round-trip). The fake 500s on GET so any GET
+// attempt would surface as an error.
+func TestNewForVersionPicksPOSTFirst(t *testing.T) {
+	var sawGET bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/trpc/projects.listProjects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			sawGET = true
+			writeJSON(w, 500, map[string]any{"json": map[string]any{"message": "should not GET"}})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"json": []Project{{Name: "ok"}}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	got, err := NewForVersion(srv.URL, "tok", "2.32.2").ListProjects(context.Background())
+	if err != nil || len(got) != 1 || got[0].Name != "ok" {
+		t.Fatalf("got=%v err=%v", got, err)
+	}
+	if sawGET {
+		t.Fatal("2.32.x panel should be queried with POST first, not GET")
 	}
 }

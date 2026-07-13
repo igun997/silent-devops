@@ -112,6 +112,25 @@ sudo ls -l /var/lib/silent-devops/agent
 
 Agent initiates outbound mTLS connection. Do not expose inbound agent control port.
 
+### EasyPanel support (optional)
+
+To manage a host's [EasyPanel](https://easypanel.io) from the client
+(`easypanel AGENT detect|projects|token|migrate`), install the standalone
+`easypanel-migrate` helper on that agent host. It is **not** bundled by
+`install.sh agent`; install it per host:
+
+```sh
+GOOS=linux GOARCH=amd64 go build -o bin/easypanel-migrate-linux-amd64 ./cmd/easypanel-migrate
+scp bin/easypanel-migrate-linux-amd64 HOST:/tmp/em
+ssh HOST 'sudo install -m 0755 /tmp/em /usr/local/bin/easypanel-migrate'
+silent-devops-client easypanel AGENT_ID detect   # verify
+```
+
+Cross-agent migration routes to the **target panel's own public URL** (its
+`customPanelDomain`/`defaultDomain`/`serverIp`, surfaced by `detect` as
+`public_url=`), not the agent hostname, so it works across networks. See
+[EasyPanel service migration](easypanel-migrate.md).
+
 ## Optional remote client
 
 ```sh

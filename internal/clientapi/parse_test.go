@@ -28,3 +28,33 @@ func TestParseDetectURL(t *testing.T) {
 		t.Fatal("expected empty for no url field")
 	}
 }
+
+func TestExtractBoolFlag(t *testing.T) {
+	rest, ok := extractBoolFlag([]string{"migrate", "--detach", "--x"}, "--detach")
+	if !ok {
+		t.Fatal("expected --detach present")
+	}
+	if len(rest) != 2 || rest[0] != "migrate" || rest[1] != "--x" {
+		t.Fatalf("rest=%v", rest)
+	}
+	if _, ok := extractBoolFlag([]string{"a", "b"}, "--detach"); ok {
+		t.Fatal("absent bool flag should return ok=false")
+	}
+}
+
+func TestParseDetectField(t *testing.T) {
+	line := "easypanel: detected container=easypanel.1.x url=http://127.0.0.1:3000 version=2.32.2 public_url=https://panel.example.com"
+	if got := parseDetectField(line, "public_url="); got != "https://panel.example.com" {
+		t.Fatalf("public_url=%q", got)
+	}
+	if got := parseDetectField(line, "url="); got != "http://127.0.0.1:3000" {
+		t.Fatalf("url=%q", got)
+	}
+	// "unknown" sentinel is treated as absent.
+	if got := parseDetectField("x public_url=unknown", "public_url="); got != "" {
+		t.Fatalf("unknown should be empty, got %q", got)
+	}
+	if got := parseDetectField("x version=2.30.1", "public_url="); got != "" {
+		t.Fatalf("absent field should be empty, got %q", got)
+	}
+}

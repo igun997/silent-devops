@@ -130,5 +130,6 @@ See [installation guide](docs/installation.md) for release download and instance
 - [Operations and security](docs/operations.md)
 - [Storage backup and restore](docs/storage.md)
 - [Production VM smoke test](docs/vm-smoke-test.md)
+- [EasyPanel service migration](docs/easypanel-migrate.md)
 
 > MVP is suitable for controlled evaluation and limited internal deployment. It is not production-hardened for hostile multi-tenant environments. Before broad production rollout, add immediate session revocation, clone detection, signed releases, tamper-evident audit storage, security alerting, tested disk-pressure behavior, and formal PKI revocation.

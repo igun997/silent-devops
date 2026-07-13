@@ -37,20 +37,34 @@ type Detection struct {
 	Present   bool
 	Container string // running panel container name (easypanel.1.*)
 	BaseURL   string // http://127.0.0.1:3000
+	Version   string // panel semver from /app/package.json, e.g. "2.32.2" (may be "")
+	// PublicURL is the panel's own externally reachable base URL, read from its
+	// LMDB settings (customPanelDomain over HTTPS, else serverIp:3000). Empty
+	// when the panel has neither configured. Used to route a cross-agent migrate
+	// to the target panel without relying on the mutable, often-unresolvable
+	// agent hostname.
+	PublicURL string
 }
 
 // lmdbTokenScript reads the admin apiToken directly from EasyPanel's LMDB using
 // the panel container's own lmdb module. Panel records are stored as JSON text
-// with a short binary length/version prefix, so the store is opened with binary
-// encoding and each value is decoded by skipping to the first '{' and parsing
-// the remainder. It accepts an already-decoded {json:{...}} shape too, and
-// prints only the token — never the bcrypt password hash on the same record.
+// behind a short binary/length/version prefix whose bytes vary by panel build
+// (observed: raw length bytes, and a literal spurious '{' before the real
+// {"json":...} payload). The store is opened with binary encoding and each
+// value is decoded by trying every '{' offset (preferring the {"json" marker)
+// until one parses as JSON — a naive first-'{' skip mis-parses the doubled-'{'
+// case and silently yields an empty token. It accepts an already-decoded
+// {json:{...}} shape too, and prints only the token — never the bcrypt
+// password hash on the same record.
 const lmdbTokenScript = `const {open}=require("/app/node_modules/lmdb");` +
 	`const db=open({path:"/etc/easypanel/data/data.mdb",readOnly:true,encoding:"binary"});` +
 	`function dec(value){` +
 	`if(value&&typeof value==="object"&&value.json&&typeof value.json==="object")return value.json;` +
-	`try{const b=Buffer.from(value);const i=b.indexOf(0x7b);if(i<0)return null;` +
-	`const o=JSON.parse(b.slice(i).toString("utf8"));return o&&o.json?o.json:o;}catch(e){return null;}}` +
+	`let b;try{b=Buffer.from(value);}catch(e){return null;}` +
+	`let i=b.indexOf(Buffer.from('{"json"'));if(i<0)i=b.indexOf(0x7b);` +
+	`for(;i>=0&&i<b.length;i=b.indexOf(0x7b,i+1)){` +
+	`try{const o=JSON.parse(b.slice(i).toString("utf8"));return o&&o.json?o.json:o;}catch(e){}}` +
+	`return null;}` +
 	`let t="";for(const {key,value} of db.getRange()){` +
 	`const k=String(key);if(k.indexOf("users:")!==0)continue;const v=dec(value);` +
 	`if(v&&v.apiToken){if(v.admin){t=v.apiToken;break;}if(!t)t=v.apiToken;}}` +
@@ -84,7 +98,70 @@ func Detect(ctx context.Context, r Runner) (Detection, error) {
 	if container == "" {
 		return Detection{Present: false}, nil
 	}
-	return Detection{Present: true, Container: container, BaseURL: localURL()}, nil
+	version, _ := PanelVersion(ctx, r, container)     // best-effort; empty is fine
+	publicURL, _ := PanelPublicURL(ctx, r, container) // best-effort; empty is fine
+	return Detection{Present: true, Container: container, BaseURL: localURL(), Version: version, PublicURL: publicURL}, nil
+}
+
+// PanelVersion reads the panel's semver from /app/package.json inside the
+// container. It is best-effort: an empty string with a nil error means the
+// version could not be determined (the client then negotiates the query method
+// via 405 fallback instead of using the version hint).
+func PanelVersion(ctx context.Context, r Runner, container string) (string, error) {
+	if r == nil {
+		r = ExecRunner{}
+	}
+	if container == "" {
+		return "", errors.New("easypanel: no panel container")
+	}
+	out, err := r.Run(ctx, "docker", "exec", container, "node", "-e",
+		`try{process.stdout.write(String(require("/app/package.json").version||""))}catch(e){}`)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// lmdbSettingsScript reads the panel's own reachable base URL from EasyPanel's
+// LMDB settings, trying three sources in priority order:
+//  1. customPanelDomain — an operator-set custom panel domain (HTTPS)
+//  2. defaultDomain     — the panel's own *.easypanel.host subdomain (HTTPS)
+//  3. serverIp          — the host public IP on the default HTTP port :3000
+//
+// Domains are served over HTTPS by the panel's reverse proxy and are publicly
+// routable, so they are preferred over the raw IP. Values share the same
+// prefixed-JSON encoding as other records, so it reuses the scan-every-'{'
+// decode. It prints ONLY the resolved URL (or empty) — never other settings
+// such as tokens.
+const lmdbSettingsScript = `const {open}=require("/app/node_modules/lmdb");` +
+	`const db=open({path:"/etc/easypanel/data/data.mdb",readOnly:true,encoding:"binary"});` +
+	`function dec(value){` +
+	`if(value&&typeof value==="object"&&value.json!==undefined)return value.json;` +
+	`let b;try{b=Buffer.from(value);}catch(e){return undefined;}` +
+	`let i=b.indexOf(Buffer.from('{"json"'));if(i<0)i=b.indexOf(0x7b);` +
+	`for(;i>=0&&i<b.length;i=b.indexOf(0x7b,i+1)){` +
+	`try{const o=JSON.parse(b.slice(i).toString("utf8"));return o&&o.json!==undefined?o.json:o;}catch(e){}}` +
+	`return undefined;}` +
+	`function get(k){try{const v=dec(db.get(k));return typeof v==="string"?v.trim():"";}catch(e){return "";}}` +
+	`const dom=get("settings:customPanelDomain");const def=get("settings:defaultDomain");const ip=get("settings:serverIp");` +
+	`let u="";if(dom)u="https://"+dom;else if(def)u="https://"+def;else if(ip)u="http://"+ip+":3000";` +
+	`process.stdout.write(u);`
+
+// PanelPublicURL reads the panel's own externally reachable base URL from its
+// LMDB settings (customPanelDomain over HTTPS, else serverIp:3000). Best-effort:
+// an empty string with a nil error means neither was configured.
+func PanelPublicURL(ctx context.Context, r Runner, container string) (string, error) {
+	if r == nil {
+		r = ExecRunner{}
+	}
+	if container == "" {
+		return "", errors.New("easypanel: no panel container")
+	}
+	out, err := r.Run(ctx, "docker", "exec", container, "node", "-e", lmdbSettingsScript)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 // panelContainer returns the first line naming a panel container.
@@ -132,5 +209,5 @@ func DetectAndToken(ctx context.Context, r Runner) (*Client, Detection, error) {
 	if err != nil {
 		return nil, det, err
 	}
-	return New(det.BaseURL, token), det, nil
+	return NewForVersion(det.BaseURL, token, det.Version), det, nil
 }

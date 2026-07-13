@@ -3,9 +3,13 @@
 // migrate ("snapshot/transfer") a service between two panels without any
 // operator-supplied credentials.
 //
-// The tRPC surface used here was mapped against a live EasyPanel 2.32.x server.
-// All procedures are POST with a JSON envelope {"json": <input>}. Queries and
-// mutations share that shape. Responses wrap payloads as {"json": <payload>}.
+// The tRPC surface used here was mapped against live EasyPanel servers. Per the
+// tRPC HTTP contract, queries are GET with the input url-encoded in ?input=
+// {"json":<input>} and mutations are POST with a body of {"json":<input>}.
+// (Some builds tolerate POST for queries; others reject it with 405, so queries
+// must use GET.) Responses come back either as tRPC v10 wrappers
+// {"result":{"data":{"json":<payload>}}} or as a bare {"json":<payload>}; both
+// are decoded here.
 package easypanel
 
 import (
@@ -16,6 +20,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +32,10 @@ type Client struct {
 	BaseURL string       // e.g. http://127.0.0.1:3000
 	Token   string       // scoped API token (Bearer)
 	HTTP    *http.Client // optional; defaults applied by New
+
+	// queryMethod caches the HTTP method (GET or POST) this panel accepts for
+	// tRPC queries, negotiated on first use via 405 fallback.
+	queryMethod string
 }
 
 // New builds a Client with a bounded default HTTP client.
@@ -35,6 +45,49 @@ func New(baseURL, token string) *Client {
 		Token:   token,
 		HTTP:    &http.Client{Timeout: 60 * time.Second},
 	}
+}
+
+// NewForVersion builds a Client that uses the panel semver to pick the initial
+// tRPC query HTTP method, avoiding a wasted 405 round-trip on the first query.
+// Observed: EasyPanel 2.30.x uses GET queries (v10 response envelope); 2.32.x
+// uses POST queries (bare envelope). The 405 fallback still corrects a wrong
+// guess (e.g. an untested build at the boundary), so an empty/unparseable
+// version simply defaults to GET-first.
+func NewForVersion(baseURL, token, version string) *Client {
+	c := New(baseURL, token)
+	if preferPOSTQuery(version) {
+		c.queryMethod = http.MethodPost
+	}
+	return c
+}
+
+// preferPOSTQuery reports whether the panel version wants POST for tRPC queries
+// (true for >= 2.32.0). Unparseable versions return false (GET-first).
+func preferPOSTQuery(version string) bool {
+	major, minor, ok := parseMajorMinor(version)
+	if !ok {
+		return false
+	}
+	if major != 2 {
+		return major > 2
+	}
+	return minor >= 32
+}
+
+// parseMajorMinor parses the leading "MAJOR.MINOR" of a semver string.
+func parseMajorMinor(version string) (major, minor int, ok bool) {
+	v := strings.TrimSpace(version)
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	maj, err1 := strconv.Atoi(parts[0])
+	min, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return maj, min, true
 }
 
 // Project is an EasyPanel project record.
@@ -69,8 +122,68 @@ func NotFound(err error) bool {
 	return errors.As(err, &ae) && (ae.Status == http.StatusNotFound || ae.Code == "NOT_FOUND")
 }
 
-// trpc issues a POST to /api/trpc/<proc> with {"json": input} and decodes the
-// {"json": ...} response payload into out. A nil out skips decoding.
+// trpcQuery reads a tRPC query. Panel builds disagree on the HTTP method for
+// queries: the tRPC HTTP contract uses GET (input url-encoded in ?input=), but
+// some EasyPanel builds only accept POST and 405 on GET, while others 405 on
+// POST. So it tries GET first and falls back to POST on a 405, and vice versa,
+// caching the winning method on the client for subsequent calls.
+func (c *Client) trpcQuery(ctx context.Context, proc string, input any, out any) error {
+	if c.BaseURL == "" {
+		return errors.New("easypanel: base url required")
+	}
+	first := c.queryMethod
+	if first == "" {
+		first = http.MethodGet
+	}
+	err := c.queryVia(ctx, first, proc, input, out)
+	if !methodNotAllowed(err) {
+		if err == nil {
+			c.queryMethod = first
+		}
+		return err
+	}
+	alt := http.MethodPost
+	if first == http.MethodPost {
+		alt = http.MethodGet
+	}
+	if err := c.queryVia(ctx, alt, proc, input, out); err != nil {
+		return err
+	}
+	c.queryMethod = alt
+	return nil
+}
+
+// queryVia performs a single query attempt with the given HTTP method.
+func (c *Client) queryVia(ctx context.Context, method, proc string, input any, out any) error {
+	enc, err := json.Marshal(map[string]any{"json": input})
+	if err != nil {
+		return err
+	}
+	if method == http.MethodPost {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			c.BaseURL+"/api/trpc/"+proc, bytes.NewReader(enc))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return c.do(req, proc, out)
+	}
+	url := c.BaseURL + "/api/trpc/" + proc + "?input=" + neturl.QueryEscape(string(enc))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	return c.do(req, proc, out)
+}
+
+// methodNotAllowed reports whether err is an HTTP 405 from the panel.
+func methodNotAllowed(err error) bool {
+	var ae *APIError
+	return errors.As(err, &ae) && ae.Status == http.StatusMethodNotAllowed
+}
+
+// trpc issues a POST to /api/trpc/<proc> with a {"json": input} body (mutations
+// are POST) and decodes the response payload into out. A nil out skips decoding.
 func (c *Client) trpc(ctx context.Context, proc string, input any, out any) error {
 	if c.BaseURL == "" {
 		return errors.New("easypanel: base url required")
@@ -85,6 +198,13 @@ func (c *Client) trpc(ctx context.Context, proc string, input any, out any) erro
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	return c.do(req, proc, out)
+}
+
+// do sends req (adding the bearer token), maps non-2xx to an APIError, and
+// decodes the tRPC payload into out, accepting both the v10
+// {"result":{"data":{"json":...}}} wrapper and a bare {"json":...} envelope.
+func (c *Client) do(req *http.Request, proc string, out any) error {
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
@@ -107,38 +227,74 @@ func (c *Client) trpc(ctx context.Context, proc string, input any, out any) erro
 	if out == nil {
 		return nil
 	}
-	var env struct {
-		JSON json.RawMessage `json:"json"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return fmt.Errorf("easypanel: decode %s: %w", proc, err)
-	}
-	payload := env.JSON
-	if len(payload) == 0 {
-		payload = raw // some mutations return a bare value
-	}
+	payload := unwrapPayload(raw)
 	return json.Unmarshal(payload, out)
 }
 
+// unwrapPayload extracts the inner payload from either the tRPC v10 wrapper
+// {"result":{"data":{"json":<payload>}}} or a bare {"json":<payload>}, falling
+// back to the raw body for mutations that return a bare value.
+func unwrapPayload(raw []byte) json.RawMessage {
+	var v10 struct {
+		Result struct {
+			Data struct {
+				JSON json.RawMessage `json:"json"`
+			} `json:"data"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(raw, &v10) == nil && len(v10.Result.Data.JSON) > 0 {
+		return v10.Result.Data.JSON
+	}
+	var bare struct {
+		JSON json.RawMessage `json:"json"`
+	}
+	if json.Unmarshal(raw, &bare) == nil && len(bare.JSON) > 0 {
+		return bare.JSON
+	}
+	return raw
+}
+
 func decodeAPIError(status int, raw []byte) error {
-	// tRPC error: {"json":{"code":"NOT_FOUND","status":404,"message":"..."}}
-	var env struct {
-		JSON struct {
-			Code    string `json:"code"`
-			Status  int    `json:"status"`
-			Message string `json:"message"`
-		} `json:"json"`
-		// REST-style: {"message":"...","success":false} or {"error":"Not found"}
+	// tRPC v10 error: {"error":{"json":{"code":"NOT_FOUND","data":{"httpStatus":404},"message":"..."}}}
+	// legacy tRPC error: {"json":{"code":"NOT_FOUND","status":404,"message":"..."}}
+	type trpcErr struct {
+		Code    string `json:"code"`
+		Status  int    `json:"status"`
 		Message string `json:"message"`
-		Error   string `json:"error"`
+		Data    struct {
+			HTTPStatus int    `json:"httpStatus"`
+			Code       string `json:"code"`
+		} `json:"data"`
+	}
+	var env struct {
+		Error struct {
+			JSON trpcErr `json:"json"`
+		} `json:"error"`
+		JSON trpcErr `json:"json"`
+		// REST-style: {"message":"...","success":false}
+		Message string `json:"message"`
 	}
 	_ = json.Unmarshal(raw, &env)
-	ae := &APIError{Status: status, Code: env.JSON.Code, Message: env.JSON.Message}
+	te := env.Error.JSON
+	if te.Code == "" && te.Message == "" {
+		te = env.JSON // legacy shape
+	}
+	code := te.Code
+	if code == "" {
+		code = te.Data.Code
+	}
+	ae := &APIError{Status: status, Code: code, Message: te.Message}
+	if ae.Message == "" && env.Message != "" {
+		ae.Message = env.Message
+	}
+	// REST-style {"error":"Not found"} — "error" is a string here, decoded
+	// separately since the tRPC shape above uses "error" as an object.
 	if ae.Message == "" {
-		if env.Message != "" {
-			ae.Message = env.Message
-		} else if env.Error != "" {
-			ae.Message = env.Error
+		var restErr struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(raw, &restErr) == nil {
+			ae.Message = restErr.Error
 		}
 	}
 	if ae.Code == "" && status == http.StatusNotFound {
@@ -150,7 +306,7 @@ func decodeAPIError(status int, raw []byte) error {
 // ListProjects returns all projects visible to the token.
 func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
 	var out []Project
-	if err := c.trpc(ctx, "projects.listProjects", struct{}{}, &out); err != nil {
+	if err := c.trpcQuery(ctx, "projects.listProjects", struct{}{}, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -166,7 +322,7 @@ type InspectResult struct {
 // surfaces as an APIError for which NotFound(err) is true.
 func (c *Client) InspectProject(ctx context.Context, name string) (*InspectResult, error) {
 	var out InspectResult
-	if err := c.trpc(ctx, "projects.inspectProject",
+	if err := c.trpcQuery(ctx, "projects.inspectProject",
 		map[string]string{"projectName": name}, &out); err != nil {
 		return nil, err
 	}

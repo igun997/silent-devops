@@ -3,6 +3,7 @@ package clientcli
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -16,26 +17,37 @@ import (
 // resolved automatically by the client adapter (--to-agent), so the operator
 // only names projects/services and toggles create/overwrite.
 type migrateForm struct {
-	fields    []textinput.Model // localProject, localService, remoteProject, remoteService
-	focus     int               // index into fields, then targetIdx, create, overwrite, submit
+	fields    []textinput.Model // localProject, localService, remoteProject, remoteService, timeout(min)
+	focus     int               // index into fields, then target, create, overwrite, detach, submit
 	targets   []*devopsv1.Agent // candidate target agents (excludes source)
 	targetIdx int
 	create    bool
 	overwrite bool
+	detach    bool
 	source    *devopsv1.Agent
 	confirm   bool // second Enter confirms the destructive run
 }
 
-// migrateField labels align with the fields slice order.
-var migrateLabels = []string{"local project", "local service", "remote project", "remote service"}
+// migrateField labels align with the fields slice order. "remote url" is
+// optional (blank = derive http://<target hostname>:3000, which only works when
+// that host is resolvable from the source agent). "timeout (min)" bounds the
+// long-running migrate job; the agent kills the job past this deadline.
+var migrateLabels = []string{"local project", "local service", "remote project", "remote service", "remote url (opt)", "timeout (min)"}
 
-// focus stops: 0-3 fields, 4 target, 5 create, 6 overwrite, 7 submit.
+// optionalMigrateFields lists field indices that may be left blank.
+var optionalMigrateFields = map[int]bool{mfRemoteURL: true}
+
+// focus stops: 0-5 fields (incl. remote url + timeout), 6 target, 7 create,
+// 8 overwrite, 9 detach, 10 submit.
 const (
-	mfTarget    = 4
-	mfCreate    = 5
-	mfOverwrite = 6
-	mfSubmit    = 7
-	mfStops     = 8
+	mfRemoteURL = 4
+	mfTimeout   = 5
+	mfTarget    = 6
+	mfCreate    = 7
+	mfOverwrite = 8
+	mfDetach    = 9
+	mfSubmit    = 10
+	mfStops     = 11
 )
 
 func newMigrateForm(source *devopsv1.Agent, targets []*devopsv1.Agent) *migrateForm {
@@ -50,7 +62,8 @@ func newMigrateForm(source *devopsv1.Agent, targets []*devopsv1.Agent) *migrateF
 		}
 		f.fields = append(f.fields, in)
 	}
-	f.create = true // default to auto-creating the remote project
+	f.create = true                    // default to auto-creating the remote project
+	f.fields[mfTimeout].SetValue("30") // default 30-minute migrate budget
 	return f
 }
 
@@ -115,6 +128,8 @@ func (d *Dashboard) updateMigrate(k tea.KeyMsg) tea.Cmd {
 			f.create = !f.create
 		case mfOverwrite:
 			f.overwrite = !f.overwrite
+		case mfDetach:
+			f.detach = !f.detach
 		}
 		return nil
 	case "enter":
@@ -154,9 +169,15 @@ func (f *migrateForm) setFocus(i int) {
 
 func (f *migrateForm) validate() error {
 	for i := range f.fields {
+		if optionalMigrateFields[i] {
+			continue
+		}
 		if strings.TrimSpace(f.fields[i].Value()) == "" {
 			return fmt.Errorf("%s is required", migrateLabels[i])
 		}
+	}
+	if m, err := strconv.Atoi(strings.TrimSpace(f.fields[mfTimeout].Value())); err != nil || m <= 0 {
+		return fmt.Errorf("timeout (min) must be a positive number")
 	}
 	if len(f.targets) == 0 {
 		return fmt.Errorf("no target agent")
@@ -177,11 +198,18 @@ func (d *Dashboard) dispatchMigrate() tea.Cmd {
 		"--remote-project", strings.TrimSpace(f.fields[2].Value()),
 		"--remote-service", strings.TrimSpace(f.fields[3].Value()),
 	}
+	if ru := strings.TrimSpace(f.fields[mfRemoteURL].Value()); ru != "" {
+		args = append(args, "--remote-url", ru)
+	}
+	args = append(args, "--timeout", strings.TrimSpace(f.fields[mfTimeout].Value()))
 	if f.create {
 		args = append(args, "--create-remote-project")
 	}
 	if f.overwrite {
 		args = append(args, "--overwrite-remote-service")
+	}
+	if f.detach {
+		args = append(args, "--detach")
 	}
 	d.closeMigrate()
 	d.loading = true
@@ -214,7 +242,8 @@ func (d *Dashboard) migrateView() string {
 	b.WriteString("\n")
 	b.WriteString(d.toggleLine(f.focus == mfTarget, "target agent", agentName(f.targets[f.targetIdx])+"  (←/→)") + "\n")
 	b.WriteString(d.toggleLine(f.focus == mfCreate, "create remote project", boolText(f.create)+"  (space)") + "\n")
-	b.WriteString(d.toggleLine(f.focus == mfOverwrite, "overwrite remote svc", boolText(f.overwrite)+"  (space)") + "\n\n")
+	b.WriteString(d.toggleLine(f.focus == mfOverwrite, "overwrite remote svc", boolText(f.overwrite)+"  (space)") + "\n")
+	b.WriteString(d.toggleLine(f.focus == mfDetach, "detach (run in background)", boolText(f.detach)+"  (space)") + "\n\n")
 	submit := "  [ run migrate ]"
 	if f.focus == mfSubmit {
 		submit = d.th.cursor.Render("▸ ") + d.th.value.Render("[ run migrate ]")

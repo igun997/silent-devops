@@ -39,8 +39,11 @@ const record = {
   },
   meta: { values: { createdAt: ["Date"] }, v: 1 },
 };
-// Two-byte binary prefix before the JSON payload, like the real store.
-const payload = Buffer.concat([Buffer.from([0x08, 0x01]), Buffer.from(JSON.stringify(record), "utf8")]);
+// Binary length/version prefix before the JSON payload, like the real store.
+// A leading spurious '{' (0x7b) reproduces a real panel build where a naive
+// first-'{' skip mis-parses the record and yields an empty token; the extractor
+// must scan past it to the real {"json":...} payload.
+const payload = Buffer.concat([Buffer.from([0x7b, 0x08, 0x01]), Buffer.from(JSON.stringify(record), "utf8")]);
 db.putSync("users:admin000000000000000000000", payload);
 
 function readBody(req) {
@@ -64,7 +67,15 @@ const server = http.createServer(async (req, res) => {
   const auth = req.headers["authorization"] || "";
   const url = req.url.split("?")[0];
   const body = await readBody(req);
-  const input = (body && body.json) || {};
+  // tRPC queries send input in the ?input= query param (GET); mutations send it
+  // in the body (POST). The real client negotiates GET/POST per panel build, so
+  // accept both here.
+  let queryInput = {};
+  try {
+    const raw = new URL(req.url, "http://x").searchParams.get("input");
+    if (raw) queryInput = JSON.parse(raw).json || {};
+  } catch (e) {}
+  const input = (body && body.json) || queryInput || {};
 
   if (url === "/api/trpc/projects.listProjects") {
     return send(res, 200, { json: [...projects.keys()].map((name) => ({ name })) });
