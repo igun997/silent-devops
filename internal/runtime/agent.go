@@ -54,6 +54,7 @@ func RunAgent(ctx context.Context, cfg AgentConfig) error {
 		return errors.New("invalid validator CA")
 	}
 	hostname, _ := os.Hostname()
+	hostKey, _ := os.ReadFile(cfg.HostKeyPath)
 	hello := &devopsv1.AgentHello{AgentId: credentialsData.AgentID, Hostname: hostname, Architecture: runtime.GOARCH, Protocol: &devopsv1.VersionRange{Minimum: 1, Maximum: 1}, Limits: devopsv1.DefaultLimits()}
 	return agentstream.Reconnect(ctx, time.Second, time.Minute, func(connectCtx context.Context) error {
 		conn, err := grpc.NewClient(cfg.Validator, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{cert}, RootCAs: pool, MinVersion: tls.VersionTLS13})))
@@ -61,13 +62,16 @@ func RunAgent(ctx context.Context, cfg AgentConfig) error {
 			return err
 		}
 		defer conn.Close()
-		stream, err := devopsv1.NewAgentServiceClient(conn).Connect(connectCtx)
+		client := devopsv1.NewAgentServiceClient(conn)
+		stream, err := client.Connect(connectCtx)
 		if err != nil {
 			return err
 		}
 		locked := &lockedStream{AgentService_ConnectClient: stream}
 		handler := &agentstream.Handler{AgentID: credentialsData.AgentID, Dispatcher: maintenance.Dispatcher{Runner: maintenance.Runner{MaxOutputBytes: int(devopsv1.DefaultLimits().MaxOutputBytes)}, Timeout: time.Hour}, Send: locked.Send}
-		sshHandler := &agentstream.SSHHandler{KeyStore: sshmanager.KeyStore{Path: cfg.AuthorizedKeys}, Host: cfg.TunnelHost, User: cfg.TunnelUser, PrivateKey: cfg.TunnelKey, KnownHosts: cfg.TunnelKnownHosts, Send: locked.Send}
+		sshHandler := &agentstream.SSHHandler{KeyStore: sshmanager.KeyStore{Path: cfg.AuthorizedKeys}, HostKey: hostKey, LocalAddr: cfg.SSHLocalAddr, Open: func(c context.Context) (devopsv1.AgentService_OpenTunnelClient, error) {
+			return client.OpenTunnel(c)
+		}, Send: locked.Send}
 		if cfg.AuthorizedKeys != "" {
 			_ = sshHandler.KeyStore.Reconcile(time.Now())
 		}

@@ -38,13 +38,16 @@ func ParseValidatorConfig(getenv func(string) string) (ValidatorConfig, error) {
 }
 
 type AgentConfig struct {
-	Validator, CredentialDir                                            string
-	TunnelHost, TunnelUser, TunnelKey, TunnelKnownHosts, AuthorizedKeys string
-	Heartbeat                                                           time.Duration
+	Validator, CredentialDir                                                                       string
+	TunnelHost, TunnelUser, TunnelKey, TunnelKnownHosts, AuthorizedKeys, HostKeyPath, SSHLocalAddr string
+	Heartbeat                                                                                      time.Duration
 }
 
 func ParseAgentConfig(getenv func(string) string) (AgentConfig, error) {
-	cfg := AgentConfig{Validator: getenv("SILENT_DEVOPS_VALIDATOR"), CredentialDir: getenv("SILENT_DEVOPS_CREDENTIAL_DIR"), TunnelHost: getenv("SILENT_DEVOPS_TUNNEL_HOST"), TunnelUser: getenv("SILENT_DEVOPS_TUNNEL_USER"), TunnelKey: getenv("SILENT_DEVOPS_TUNNEL_KEY"), TunnelKnownHosts: getenv("SILENT_DEVOPS_TUNNEL_KNOWN_HOSTS"), AuthorizedKeys: getenv("SILENT_DEVOPS_AUTHORIZED_KEYS"), Heartbeat: 15 * time.Second}
+	cfg := AgentConfig{Validator: getenv("SILENT_DEVOPS_VALIDATOR"), CredentialDir: getenv("SILENT_DEVOPS_CREDENTIAL_DIR"), TunnelHost: getenv("SILENT_DEVOPS_TUNNEL_HOST"), TunnelUser: getenv("SILENT_DEVOPS_TUNNEL_USER"), TunnelKey: getenv("SILENT_DEVOPS_TUNNEL_KEY"), TunnelKnownHosts: getenv("SILENT_DEVOPS_TUNNEL_KNOWN_HOSTS"), AuthorizedKeys: getenv("SILENT_DEVOPS_AUTHORIZED_KEYS"), HostKeyPath: getenv("SILENT_DEVOPS_HOST_KEY"), SSHLocalAddr: getenv("SILENT_DEVOPS_SSH_LOCAL_ADDR"), Heartbeat: 15 * time.Second}
+	if cfg.HostKeyPath == "" {
+		cfg.HostKeyPath = "/etc/ssh/ssh_host_ed25519_key.pub"
+	}
 	if cfg.Validator == "" || cfg.CredentialDir == "" {
 		return cfg, errors.New("validator address and credential directory required")
 	}

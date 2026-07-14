@@ -22,6 +22,8 @@ services:
       SILENT_DEVOPS_CLIENT_CIDRS: 172.28.0.0/16
       SILENT_DEVOPS_BOOTSTRAP_USER: admin
       SILENT_DEVOPS_BOOTSTRAP_PASSWORD: integration-admin-password
+      SILENT_DEVOPS_SSH_PORT_MIN: "22000"
+      SILENT_DEVOPS_SSH_PORT_MAX: "22010"
     networks: {agent_net: {}, client_net: {ipv4_address: 172.28.0.10}}
     volumes: [validator-state:/state, shared:/shared]
     healthcheck: {test: [CMD-SHELL, "test -f /shared/server.crt && pgrep validator"], interval: 2s, timeout: 2s, retries: 30}
@@ -40,7 +42,7 @@ services:
     environment: {ROLE: agent, AGENT_ID: ubuntu-2404, ENROLL_TOKEN_FILE: /shared/token-2, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds}
   agent-debian-12:
     <<: *agent
-    environment: {ROLE: agent, AGENT_ID: debian-12, ENROLL_TOKEN_FILE: /shared/token-3, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds}
+    environment: {ROLE: agent, AGENT_ID: debian-12, ENROLL_TOKEN_FILE: /shared/token-3, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_CREDENTIAL_DIR: /creds, SILENT_DEVOPS_AUTHORIZED_KEYS: /shared/agent-authorized-keys}
   allowed-client:
     build: {context: .., dockerfile: integration/Dockerfile}
     environment: {ROLE: client, SILENT_DEVOPS_VALIDATOR: validator:8443, SILENT_DEVOPS_VALIDATOR_CA: /shared/server.crt, SILENT_DEVOPS_SERVER_NAME: validator}

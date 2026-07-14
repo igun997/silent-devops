@@ -9,6 +9,7 @@ import (
 	devopsv1 "silent-devops/api/devops/v1"
 	"silent-devops/internal/agent"
 	"silent-devops/internal/maintenance"
+	sshmanager "silent-devops/internal/ssh"
 )
 
 func TestHandlerExecutesTypedJobAndReturnsResult(t *testing.T) {
@@ -26,6 +27,35 @@ func TestHandlerExecutesTypedJobAndReturnsResult(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("result not sent")
 	}
+}
+func TestSSHHandlerSendsAgentHostKeyOnReady(t *testing.T) {
+	dir := t.TempDir()
+	sent := make(chan *devopsv1.AgentMessage, 1)
+	h := &agent.SSHHandler{
+		KeyStore: sshmanager.KeyStore{Path: dir + "/authorized_keys"},
+		HostKey:  []byte("ssh-ed25519 AAAAtargethostkey agent\n"),
+		Send:     func(m *devopsv1.AgentMessage) error { sent <- m; return nil },
+	}
+	prepare := &devopsv1.PrepareSsh{SessionId: "s", PublicKey: []byte("ssh-ed25519 AAAAclientkey client"), ExpiresUnixMs: time.Now().Add(time.Minute).UnixMilli(), BindingToken: []byte("binding")}
+	if err := h.Prepare(context.Background(), prepare); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case message := <-sent:
+		ready := message.GetSshReady()
+		if ready == nil {
+			t.Fatal("no SshReady sent")
+		}
+		if string(ready.HostKey) != "ssh-ed25519 AAAAtargethostkey agent\n" {
+			t.Fatalf("host key=%q", ready.HostKey)
+		}
+		if ready.SessionId != "s" {
+			t.Fatalf("unexpected ready %+v", ready)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SshReady not sent")
+	}
+	_ = h.Close("s")
 }
 func TestHandlerRejectsExpiredDuplicateAndWrongTarget(t *testing.T) {
 	h := agent.Handler{AgentID: "a", Dispatcher: maintenance.Dispatcher{Runner: maintenance.Runner{MaxOutputBytes: 10}}, Send: func(*devopsv1.AgentMessage) error { return nil }}

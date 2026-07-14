@@ -30,13 +30,13 @@ func TestCredentialStoreRootOnlyRoundTripAndClear(t *testing.T) {
 	}
 }
 func TestGrammarRejectsMalformedCommands(t *testing.T) {
-	bad := [][]string{{"agents"}, {"agents", "bad"}, {"services", "start"}, {"cleanup", "run"}, {"ssh"}, {"login", "only-user"}}
+	bad := [][]string{{"agents"}, {"agents", "bad"}, {"services", "start"}, {"cleanup", "run"}, {"ssh"}, {"ssh", "only-agent"}, {"login", "only-user"}}
 	for _, args := range bad {
 		if clientcli.Validate(args) == nil {
 			t.Errorf("accepted %v", args)
 		}
 	}
-	good := [][]string{{"agents", "list"}, {"services", "status", "a", "sshd.service"}, {"cleanup", "preview", "a", "/tmp/x"}, {"login", "u", "p"}, {"tui"}}
+	good := [][]string{{"agents", "list"}, {"services", "status", "a", "sshd.service"}, {"cleanup", "preview", "a", "/tmp/x"}, {"login", "u", "p"}, {"tui"}, {"ssh", "agent", "key.pub"}, {"ssh", "status", "sid"}, {"ssh", "close", "sid"}}
 	for _, args := range good {
 		if err := clientcli.Validate(args); err != nil {
 			t.Errorf("%v: %v", args, err)

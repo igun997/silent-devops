@@ -15,6 +15,9 @@ func (a *authClient) Login(_ context.Context, r *devopsv1.LoginRequest, _ ...grp
 	a.request = r
 	return &devopsv1.LoginResponse{AccessToken: "secret", Role: devopsv1.Role_ROLE_ADMIN}, nil
 }
+func (a *authClient) RedeemClientInvitation(context.Context, *devopsv1.RedeemClientInvitationRequest, ...grpc.CallOption) (*devopsv1.LoginResponse, error) {
+	return &devopsv1.LoginResponse{AccessToken: "secret"}, nil
+}
 
 type fleetClient struct{ token string }
 

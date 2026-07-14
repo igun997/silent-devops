@@ -43,7 +43,7 @@ func (h MessageHandler) Handle(ctx context.Context, agentID string, message *dev
 			return errors.New("storage unavailable")
 		}
 		result := payload.JobResult
-		updated, err := h.DB.ExecContext(ctx, "UPDATE jobs SET state=? WHERE id=? AND agent_id=? AND dispatch_id=? AND attempt=? AND state IN (2,3)", result.State, result.JobId, agentID, result.DispatchId, result.Attempt)
+		updated, err := h.DB.ExecContext(ctx, "UPDATE jobs SET state=?,output=?,output_truncated=? WHERE id=? AND agent_id=? AND dispatch_id=? AND attempt=? AND state IN (2,3)", result.State, result.Output, result.OutputTruncated, result.JobId, agentID, result.DispatchId, result.Attempt)
 		if err != nil {
 			return err
 		}

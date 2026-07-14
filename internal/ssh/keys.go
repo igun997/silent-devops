@@ -13,6 +13,10 @@ import (
 
 type KeyStore struct{ Path string }
 
+// Install authorizes a client key on the agent login user for the session.
+// restrict,pty permits an interactive shell and command execution with a pty
+// but denies all forwarding (port, agent, X11) so the client cannot pivot
+// through the agent. The session marker carries the expiry for reconciliation.
 func (k KeyStore) Install(sessionID string, publicKey []byte, expires time.Time) error {
 	if sessionID == "" || expires.IsZero() {
 		return errors.New("session and expiry required")
@@ -21,7 +25,7 @@ func (k KeyStore) Install(sessionID string, publicKey []byte, expires time.Time)
 	if len(fields) < 2 || !strings.HasPrefix(fields[0], "ssh-") {
 		return errors.New("invalid SSH public key")
 	}
-	line := fmt.Sprintf("restrict,port-forwarding,command=\"/bin/false\" %s %s silent-devops:%s:%d\n", fields[0], fields[1], sessionID, expires.Unix())
+	line := fmt.Sprintf("restrict,pty %s %s silent-devops:%s:%d\n", fields[0], fields[1], sessionID, expires.Unix())
 	return k.update(func(lines []string) []string {
 		return append(removeSession(lines, sessionID), strings.TrimSuffix(line, "\n"))
 	})
@@ -91,7 +95,7 @@ func atomicWrite(path string, data []byte) error {
 			os.Remove(name)
 		}
 	}()
-	if err := tmp.Chmod(0600); err != nil {
+	if err := tmp.Chmod(0644); err != nil {
 		return err
 	}
 	if _, err := tmp.Write(data); err != nil {
@@ -126,11 +130,4 @@ func marker(line string) string {
 		}
 	}
 	return ""
-}
-func ReverseTunnelArgs(host string, port uint32, user, key, knownHosts string) ([]string, error) {
-	if host == "" || port == 0 || user == "" || key == "" || knownHosts == "" {
-		return nil, errors.New("complete SSH tunnel configuration required")
-	}
-	remote := fmt.Sprintf("127.0.0.1:%d:127.0.0.1:22", port)
-	return []string{"-N", "-T", "-i", key, "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=" + knownHosts, "-o", "PasswordAuthentication=no", "-o", "KbdInteractiveAuthentication=no", "-o", "RequestTTY=no", "-o", "ForwardAgent=no", "-o", "ForwardX11=no", "-o", "ClearAllForwardings=yes", "-R", remote, user + "@" + host}, nil
 }

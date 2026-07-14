@@ -75,6 +75,7 @@ func (d Dispatcher) Dispatch(ctx context.Context, job *devopsv1.Job) *devopsv1.J
 	run := d.Runner.Run(ctx, timeout, argv[0], argv[1:]...)
 	result.ExitCode = int32(run.ExitCode)
 	result.OutputTruncated = run.Truncated
+	result.Output = run.Output
 	if run.Err == nil {
 		result.State = devopsv1.JobState_JOB_STATE_SUCCEEDED
 		return result

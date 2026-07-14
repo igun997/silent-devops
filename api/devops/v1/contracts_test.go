@@ -30,6 +30,7 @@ func TestSecurityCriticalContractsRoundTrip(t *testing.T) {
 	roundTrip(t, &devopsv1.RenewRequest{CsrDer: []byte{1}}, &devopsv1.RenewRequest{})
 	roundTrip(t, &devopsv1.PrepareSsh{SessionId: "s", PublicKey: []byte("key"), ExpiresUnixMs: 42, LoopbackPort: 22001, BindingToken: []byte("binding")}, &devopsv1.PrepareSsh{})
 	roundTrip(t, &devopsv1.ValidatorMessage{Payload: &devopsv1.ValidatorMessage_PrepareSsh{PrepareSsh: &devopsv1.PrepareSsh{SessionId: "s", LoopbackPort: 22001, BindingToken: []byte("binding")}}}, &devopsv1.ValidatorMessage{})
+	roundTrip(t, &devopsv1.SshSession{Id: "s", AgentId: "a", State: devopsv1.SshSessionState_SSH_SESSION_STATE_READY, ValidatorLoopbackPort: 22001, ExpiresUnixMs: 42, HostKey: []byte("target-host-key"), JumpHost: "validator:2222", JumpUser: "silent-client", JumpHostKey: []byte("jump-host-key")}, &devopsv1.SshSession{})
 	roundTrip(t, &devopsv1.ExecJobRequest{Context: &devopsv1.JobRequestContext{AgentId: "a", Reason: "incident", TimeoutSeconds: 30, IdempotencyKey: "i", Confirmed: true}, Request: &devopsv1.ArbitraryCommand{Command: "id"}}, &devopsv1.ExecJobRequest{})
 	roundTrip(t, &devopsv1.ProtocolError{Code: devopsv1.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, Details: []*devopsv1.ErrorDetail{{Field: "unit", Retryable: false}}}, &devopsv1.ProtocolError{})
 }

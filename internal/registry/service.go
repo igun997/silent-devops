@@ -14,15 +14,40 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	devopsv1 "silent-devops/api/devops/v1"
+	"silent-devops/internal/tunnel"
 )
 
 type AgentServer struct {
 	devopsv1.UnimplementedAgentServiceServer
 	Registry    *Registry
 	Persistence *Persistence
+	Relay       *tunnel.Relay
 	Authorize   func(context.Context, string, string, time.Time) error
 	Handle      func(context.Context, string, *devopsv1.AgentMessage) error
 	Now         func() time.Time
+}
+
+// OpenTunnel is the agent end of an SSH byte relay. The agent dials its local
+// sshd, sends a first frame carrying session id + binding token, and the
+// validator splices this stream to the waiting client stream.
+func (s *AgentServer) OpenTunnel(stream grpc.BidiStreamingServer[devopsv1.TunnelFrame, devopsv1.TunnelFrame]) error {
+	if s.Relay == nil {
+		return status.Error(codes.FailedPrecondition, "relay unavailable")
+	}
+	if _, _, err := peerCertificateIdentity(stream.Context()); err != nil {
+		return status.Error(codes.Unauthenticated, err.Error())
+	}
+	first, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if first.SessionId == "" || len(first.BindingToken) == 0 {
+		return status.Error(codes.InvalidArgument, "first frame must carry session id and token")
+	}
+	if err := s.Relay.Attach(stream.Context(), first.SessionId, first.BindingToken, stream); err != nil {
+		return status.Error(codes.PermissionDenied, err.Error())
+	}
+	return nil
 }
 
 func (s *AgentServer) Connect(stream grpc.BidiStreamingServer[devopsv1.AgentMessage, devopsv1.ValidatorMessage]) error {

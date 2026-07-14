@@ -6,8 +6,8 @@ option go_package = "silent-devops/api/devops/v1;devopsv1";
 // fields; add messages or repeated/map fields freely, and mark new proto3 scalar
 // fields optional when wire presence matters. Incompatible behavior requires devops.v2.
 service EnrollmentService { rpc Enroll(EnrollRequest) returns (EnrollResponse); rpc Renew(RenewRequest) returns (RenewResponse); }
-service AgentService { rpc Connect(stream AgentMessage) returns (stream ValidatorMessage); }
-service AuthService { rpc Login(LoginRequest) returns (LoginResponse); }
+service AgentService { rpc Connect(stream AgentMessage) returns (stream ValidatorMessage); rpc OpenTunnel(stream TunnelFrame) returns (stream TunnelFrame); }
+service AuthService { rpc Login(LoginRequest) returns (LoginResponse); rpc RedeemClientInvitation(RedeemClientInvitationRequest) returns (LoginResponse); }
 service FleetService {
   rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse); rpc GetAgent(GetAgentRequest) returns (Agent);
   rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
@@ -16,9 +16,11 @@ service FleetService {
   rpc ReadLogs(JournalJobRequest) returns (Job); rpc PreviewCleanup(CleanupPreviewJobRequest) returns (Job); rpc RunCleanup(CleanupRunJobRequest) returns (Job);
   rpc Reboot(RebootJobRequest) returns (Job); rpc Exec(ExecJobRequest) returns (Job);
   rpc CancelJob(CancelJobRequest) returns (Job); rpc StreamJobOutput(StreamJobOutputRequest) returns (stream OutputChunk);
-  rpc PrepareSsh(PrepareSshRequest) returns (SshSession); rpc CloseSsh(CloseSshRequest) returns (SshSession);
+  rpc PrepareSsh(PrepareSshRequest) returns (SshSession); rpc GetSshSession(GetSshSessionRequest) returns (SshSession); rpc CloseSsh(CloseSshRequest) returns (SshSession);
+  rpc BridgeSsh(stream TunnelFrame) returns (stream TunnelFrame);
   rpc ListAudit(ListAuditRequest) returns (ListAuditResponse); rpc CreateEnrollmentToken(CreateEnrollmentTokenRequest) returns (EnrollmentToken); rpc ListEnrollmentTokens(ListEnrollmentTokensRequest) returns (ListEnrollmentTokensResponse); rpc RevokeEnrollmentToken(RevokeEnrollmentTokenRequest) returns (EnrollmentToken); rpc RevokeAgent(RevokeAgentRequest) returns (Agent);
   rpc CreateUser(CreateUserRequest) returns (User); rpc ListUsers(ListUsersRequest) returns (ListUsersResponse); rpc SetUserRole(SetUserRoleRequest) returns (User);
+  rpc CreateClientInvitation(CreateClientInvitationRequest) returns (ClientInvitation); rpc ListClientInvitations(ListClientInvitationsRequest) returns (ListClientInvitationsResponse); rpc RevokeClientInvitation(RevokeClientInvitationRequest) returns (ClientInvitation);
   rpc AddSshKey(AddSshKeyRequest) returns (SshKey); rpc ListSshKeys(ListSshKeysRequest) returns (ListSshKeysResponse); rpc DeleteSshKey(DeleteSshKeyRequest) returns (DeleteSshKeyResponse);
 }
 
@@ -64,7 +66,7 @@ message ArbitraryCommand { string command=1; bool capture_output=2; }
 message SafeOperation { TypedOperation operation=1; RetryPolicy retry_policy=2; }
 message UnsafeOperation { oneof operation { CleanupRunRequest cleanup_run=1; RebootRequest reboot=2; ArbitraryCommand arbitrary_command=3; } }
 message Job { string id=1; string actor_id=2; string agent_id=3; int64 created_unix_ms=4; int64 deadline_unix_ms=5; AuthorizationContext authorization=6; oneof operation { SafeOperation safe_operation=7; UnsafeOperation unsafe_operation=8; } JobState state=9; uint32 attempt=10; string dispatch_id=11; string idempotency_key=12; }
-message JobResult { string job_id=1; JobState state=2; int32 exit_code=3; ProtocolError error=4; bool output_truncated=5; string dispatch_id=6; uint32 attempt=7; }
+message JobResult { string job_id=1; JobState state=2; int32 exit_code=3; ProtocolError error=4; bool output_truncated=5; string dispatch_id=6; uint32 attempt=7; bytes output=8; }
 message CancelJob { string job_id=1; string reason=2; int64 deadline_unix_ms=3; string request_id=4; }
 enum CancelOutcome { CANCEL_OUTCOME_UNSPECIFIED=0; CANCEL_OUTCOME_CANCELLED=1; CANCEL_OUTCOME_ALREADY_TERMINAL=2; CANCEL_OUTCOME_UNKNOWN_RESULT=3; CANCEL_OUTCOME_REJECTED=4; }
 // Acknowledgement is final. UNKNOWN_RESULT means completion cannot be proven and
@@ -77,10 +79,22 @@ message OutputChunk { string job_id=1; uint64 sequence=2; bytes data=3; bool std
 message PrepareSsh { string session_id=1; bytes public_key=2; int64 expires_unix_ms=3; uint32 loopback_port=4; bytes binding_token=5; }
 message SshReady { string session_id=1; uint32 validator_loopback_port=2; bytes host_key=3; bytes binding_token=4; }
 message CloseSsh { string session_id=1; string reason=2; }
+// TunnelFrame carries an authenticated SSH byte stream over gRPC. The first
+// frame on a stream carries session_id and binding_token for authorization;
+// subsequent frames carry data. close signals half-close of the byte stream.
+message TunnelFrame { string session_id=1; bytes binding_token=2; bytes data=3; bool close=4; }
+// OpenSshTunnel instructs the agent to dial its local sshd and open an
+// OpenTunnel stream back to the validator, joined by session_id.
+message OpenSshTunnel { string session_id=1; bytes binding_token=2; }
 message AgentMessage { oneof payload { AgentHello hello=1; Heartbeat heartbeat=2; MetricsSnapshot metrics=3; JobResult job_result=4; OutputChunk output=5; SshReady ssh_ready=6; CancelAcknowledgement cancel_ack=7; } }
-message ValidatorMessage { oneof payload { ConnectionState connection=1; Job job=2; CancelJob cancel=3; PrepareSsh prepare_ssh=4; CloseSsh close_ssh=5; } }
+message ValidatorMessage { oneof payload { ConnectionState connection=1; Job job=2; CancelJob cancel=3; PrepareSsh prepare_ssh=4; CloseSsh close_ssh=5; OpenSshTunnel open_tunnel=6; } }
 
 message LoginRequest { string username=1; string password=2; } message LoginResponse { string access_token=1; int64 expires_unix_ms=2; Role role=3; }
+message RedeemClientInvitationRequest { string secret=1; string password=2; }
+message ClientInvitation { string id=1; string secret=2; string username=3; Role role=4; int64 expires_unix_ms=5; bool consumed=6; bool revoked=7; string validator_address=8; string validator_pin=9; }
+message CreateClientInvitationRequest { string username=1; Role role=2; uint32 ttl_seconds=3; string validator_address=4; string validator_pin=5; }
+message ListClientInvitationsRequest { uint32 page_size=1; } message ListClientInvitationsResponse { repeated ClientInvitation invitations=1; }
+message RevokeClientInvitationRequest { string id=1; }
 message Agent { string id=1; string hostname=2; bool online=3; bool revoked=4; int64 last_seen_unix_ms=5; repeated Capability capabilities=6; }
 message ListAgentsRequest { uint32 page_size=1; string page_token=2; } message ListAgentsResponse { repeated Agent agents=1; string next_page_token=2; } message GetAgentRequest { string agent_id=1; }
 message GetMetricsRequest { string agent_id=1; int64 since_unix_ms=2; int64 until_unix_ms=3; uint32 page_size=4; string page_token=5; } message GetMetricsResponse { repeated MetricsSnapshot snapshots=1; string next_page_token=2; }
@@ -96,8 +110,8 @@ message CleanupRunJobRequest { JobRequestContext context=1; CleanupRunRequest re
 message RebootJobRequest { JobRequestContext context=1; RebootRequest request=2; }
 message ExecJobRequest { JobRequestContext context=1; ArbitraryCommand request=2; }
 message CancelJobRequest { string job_id=1; string reason=2; int64 deadline_unix_ms=3; }
-message PrepareSshRequest { string agent_id=1; bytes public_key=2; string reason=3; uint32 ttl_seconds=4; } message CloseSshRequest { string session_id=1; string reason=2; }
-message SshSession { string id=1; string agent_id=2; SshSessionState state=3; uint32 validator_loopback_port=4; int64 expires_unix_ms=5; bytes host_key=6; } message StreamJobOutputRequest { string job_id=1; }
+message PrepareSshRequest { string agent_id=1; bytes public_key=2; string reason=3; uint32 ttl_seconds=4; } message GetSshSessionRequest { string session_id=1; } message CloseSshRequest { string session_id=1; string reason=2; }
+message SshSession { string id=1; string agent_id=2; SshSessionState state=3; uint32 validator_loopback_port=4; int64 expires_unix_ms=5; bytes host_key=6; string jump_host=7; string jump_user=8; bytes jump_host_key=9; } message StreamJobOutputRequest { string job_id=1; }
 message AuditEvent { string id=1; string actor_id=2; string agent_id=3; string action=4; string reason=5; int64 occurred_unix_ms=6; }
 message ListAuditRequest { uint32 page_size=1; string page_token=2; string agent_id=3; } message ListAuditResponse { repeated AuditEvent events=1; string next_page_token=2; }
 message CreateEnrollmentTokenRequest { uint32 ttl_seconds=1; } message EnrollmentToken { string token=1; int64 expires_unix_ms=2; string id=3; bool consumed=4; bool revoked=5; } message ListEnrollmentTokensRequest { uint32 page_size=1; } message ListEnrollmentTokensResponse { repeated EnrollmentToken tokens=1; } message RevokeEnrollmentTokenRequest { string id=1; } message RevokeAgentRequest { string agent_id=1; string reason=2; }
