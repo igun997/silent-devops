@@ -50,7 +50,7 @@ jobs:
           cp "bin/validator-linux-$ARCH" "$root/bin/"
           cp "bin/client-linux-$ARCH" "$root/bin/"
           cp packaging/install.sh packaging/uninstall.sh "$root/"
-          cp -R packaging/systemd packaging/ssh "$root/packaging/"
+          cp -R packaging/systemd "$root/packaging/"
           cp README.md docs/installation.md docs/operations.md "$root/"
           tar -C dist -czf "dist/silent-devops-linux-$ARCH.tar.gz" "silent-devops-linux-$ARCH"
           sha256sum "dist/silent-devops-linux-$ARCH.tar.gz" > "dist/silent-devops-linux-$ARCH.tar.gz.sha256"
